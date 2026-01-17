@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import 'dotenv/config';
+import "dotenv/config";
 import * as yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
 import * as fs from 'fs';
@@ -601,7 +601,7 @@ async function loadWorkflowFromFile(filePath: string): Promise<{ agents: Agent[]
     console.log('ID:', workflow.id);
     console.log('Type:', workflow.type);
     
-    console.log('\n>>> AGENTS (${agents.length}) <<<');
+    console.log(`\n>>> AGENTS (${agents.length}) <<<`);
     
     for (const agent of agents) {
       console.log('- ' + agent.id + ' (' + agent.role + ')');

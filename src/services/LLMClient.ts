@@ -9,45 +9,66 @@ let isInitialized = false;
  */
 export class LLMClient {
   private client: Groq;
-  private readonly DEFAULT_MODEL = process.env.CURRENT_AI_MODEL || 'llama-3.1-8b-instant';
+  private model: string;
 
   constructor() {
-    // Check environment variable first, fallback to hardcoded
-    const GROQ_API_KEY = process.env.GROQ_API_KEY || 'YOUR_GROQ_API_KEY';
+    const GROQ_API_KEY = process.env.GROQ_API_KEY;
     
-    // Only log once when the first client is initialized
+    // Validate API key is set
+    if (!GROQ_API_KEY) {
+      throw new Error(
+        'GROQ_API_KEY environment variable is not set. ' +
+        'Please configure it in your .env file or set it as an environment variable.'
+      );
+    }
+
+    this.client = new Groq({ apiKey: GROQ_API_KEY });
+    this.model = process.env.CURRENT_AI_MODEL || 'llama-3.1-8b-instant';
+
     if (!isInitialized) {
       console.log(chalk.green('INITIALIZATION'));
       console.log(chalk.green('-------------'));
       console.log(chalk.green('✓ Groq client initialized'));
-      console.log(chalk.green(`✓ Using model: ${this.DEFAULT_MODEL}`));
+      console.log(chalk.green(`✓ API Key: ${GROQ_API_KEY.substring(0, 15)}...`));
+      console.log(chalk.green(`✓ Model: ${this.model}`));
       isInitialized = true;
     }
-    
-    this.client = new Groq({ apiKey: GROQ_API_KEY });
   }
 
-  /**
-   * Generates a response from the LLM based on the provided prompt
-   * @param prompt - The input prompt for the LLM
-   * @returns Promise resolving to the generated text
-   */
   async generate(prompt: string): Promise<string> {
     try {
+      console.log(chalk.green(`✓ Using model: ${this.model}`));
+
       const chatCompletion = await this.client.chat.completions.create({
         messages: [
-          {
-            role: 'user',
-            content: prompt,
-          },
+          { role: 'user', content: prompt }
         ],
-        model: this.DEFAULT_MODEL,
+        model: this.model
       });
 
-      return chatCompletion.choices[0]?.message?.content || '';
-    } catch (error) {
-      console.error(chalk.red('Error calling LLM:'), error);
-      throw error;
+      const response = chatCompletion.choices[0]?.message?.content;
+      if (!response) {
+        throw new Error('Empty response from Groq API');
+      }
+
+      return response;
+    } catch (error: any) {
+      // Provide more detailed error information
+      let errorMessage = error.message || 'Unknown error';
+      
+      if (error.status === 404) {
+        errorMessage = `Model '${this.model}' not found or not available with your API key. Check your Groq account and model name.`;
+      } else if (error.status === 401) {
+        errorMessage = 'Invalid or expired Groq API key. Please check your GROQ_API_KEY.';
+      } else if (error.status === 429) {
+        errorMessage = 'Rate limit exceeded. Please try again later.';
+      } else if (error.status === 500) {
+        errorMessage = 'Groq API server error. Please try again later.';
+      }
+      
+      console.error(chalk.red(`✘ Groq API Error: ${errorMessage}`));
+      console.error(chalk.dim(`Status: ${error.status || 'unknown'}`));
+      throw new Error(`LLM Generation failed: ${errorMessage}`);
     }
   }
 }

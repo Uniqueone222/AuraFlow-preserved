@@ -1,11 +1,13 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.Context = void 0;
+const QdrantMemoryProvider_1 = require("../memory/QdrantMemoryProvider");
 /**
  * Represents shared context between agents in a workflow.
  * Contains an ordered list of messages and shared outputs.
  */
 class Context {
+    memory;
     /**
      * Ordered list of messages that agents can read
      */
@@ -20,6 +22,11 @@ class Context {
     constructor() {
         this.messages = [];
         this.outputs = new Map();
+        this.memory =
+            process.env.MEMORY_BACKEND === "qdrant"
+                ? new QdrantMemoryProvider_1.QdrantMemoryProvider()
+                : undefined; // fallback handled later
+        console.log("🧠 Memory backend:", process.env.MEMORY_BACKEND, !!process.env.QDRANT_URL, !!process.env.QDRANT_API_KEY);
     }
     /**
      * Adds a message to the shared context

@@ -1,3 +1,8 @@
+import { MemoryProvider } from "../memory/MemoryProvider";
+import { QdrantMemoryProvider } from "../memory/QdrantMemoryProvider";
+
+
+
 export interface Message {
   id: string;
   agentId: string;
@@ -10,6 +15,9 @@ export interface Message {
  * Contains an ordered list of messages and shared outputs.
  */
 export class Context {
+
+  memory?: MemoryProvider;
+
   /**
    * Ordered list of messages that agents can read
    */
@@ -24,9 +32,23 @@ export class Context {
    * Creates a new Context instance with empty messages and outputs
    */
   constructor() {
-    this.messages = [];
-    this.outputs = new Map();
-  }
+  this.messages = [];
+  this.outputs = new Map();
+
+  this.memory =
+    process.env.MEMORY_BACKEND === "qdrant"
+      ? new QdrantMemoryProvider()
+      : undefined as any; // fallback handled later
+
+      console.log(
+  "🧠 Memory backend:",
+  process.env.MEMORY_BACKEND,
+  !!process.env.QDRANT_URL,
+  !!process.env.QDRANT_API_KEY
+);
+
+}
+
 
   /**
    * Adds a message to the shared context

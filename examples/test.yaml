@@ -1,0 +1,11 @@
+agents:
+  - id: reader
+    role: Memory Reader
+    goal: Recall the launch code
+
+workflow:
+  id: memory-test
+  type: sequential
+  steps:
+    - id: read
+      agent: reader

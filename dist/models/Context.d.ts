@@ -1,3 +1,4 @@
+import { MemoryProvider } from "../memory/MemoryProvider";
 export interface Message {
     id: string;
     agentId: string;
@@ -9,6 +10,7 @@ export interface Message {
  * Contains an ordered list of messages and shared outputs.
  */
 export declare class Context {
+    memory?: MemoryProvider;
     /**
      * Ordered list of messages that agents can read
      */
