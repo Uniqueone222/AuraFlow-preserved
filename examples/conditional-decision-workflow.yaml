@@ -56,8 +56,8 @@ workflow:
           agent: project_manager
           action: "create_implementation_plan"
           inputs:
-            required: ["proposal_summary"]
-            optional: []
+            required: []
+            optional: ["proposal_summary"]
           outputs:
             produced: ["implementation_plan", "resource_allocation"]
       - condition: "low confidence"
@@ -66,8 +66,8 @@ workflow:
           agent: rejection_handler
           action: "document_rejection_reasons"
           inputs:
-            required: ["proposal_summary"]
-            optional: []
+            required: []
+            optional: ["proposal_summary"]
           outputs:
             produced: ["rejection_reasons", "alternative_suggestions"]
     default:
@@ -75,7 +75,7 @@ workflow:
       agent: decision_maker
       action: "request_additional_information"
       inputs:
-        required: ["proposal_summary"]
-        optional: []
+        required: []
+        optional: ["proposal_summary"]
       outputs:
         produced: ["additional_requirements", "clarification_needed"]

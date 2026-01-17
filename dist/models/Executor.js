@@ -1,6 +1,10 @@
 "use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.Executor = void 0;
+const chalk_1 = __importDefault(require("chalk"));
 /**
  * Responsible for executing workflows.
  * This class handles the actual execution of workflow steps using agents.
@@ -64,17 +68,20 @@ class Executor {
                 // Prepare context information before execution
                 this.logContextPassing(agent, context, step);
                 // Execute the agent with the current context
-                const recalled = await context.memory?.query("launch code", workflow.id, 3);
-                console.log("\n🔁 RECALL FROM QDRANT:", recalled);
                 const output = await agent.run(context);
                 // Append the agent's output to the context as a new message
-                await context.memory?.save({
-                    agentId: agent.id,
-                    workflowId: workflow.id,
-                    step: i,
-                    content: output,
-                    timestamp: Date.now()
-                });
+                try {
+                    await context.memory?.save({
+                        agentId: agent.id,
+                        workflowId: workflow.id,
+                        step: i,
+                        content: output,
+                        timestamp: Date.now()
+                    });
+                }
+                catch (memoryError) {
+                    console.warn(chalk_1.default.yellow(`⚠ Warning: Failed to save to memory: ${memoryError.message}`));
+                }
                 // Store outputs in the context if specified
                 if (step.outputs && step.outputs.produced) {
                     for (const outputKey of step.outputs.produced) {
@@ -87,12 +94,15 @@ class Executor {
             }
             catch (error) {
                 const errorMsg = `Error executing agent '${agent.id}': ${error.message}`;
-                console.error('ERROR:', errorMsg);
+                console.error(chalk_1.default.red('ERROR:'), errorMsg);
+                if (error.stack) {
+                    console.error(chalk_1.default.dim(`Stack: ${error.stack.split('\n')[1]}`));
+                }
                 if (workflow.stopOnError) {
                     throw new Error(errorMsg);
                 }
                 else {
-                    console.log('INFO: Continuing execution (stopOnError=false)...');
+                    console.log(chalk_1.default.yellow('INFO: Continuing execution (stopOnError=false)...'));
                     continue;
                 }
             }
@@ -230,13 +240,18 @@ class Executor {
         try {
             const output = await agent.run(context);
             context.addMessage(agent.id, output);
-            await context.memory?.save({
-                agentId: agent.id,
-                workflowId: workflow.id,
-                step: 0,
-                content: output,
-                timestamp: Date.now()
-            });
+            try {
+                await context.memory?.save({
+                    agentId: agent.id,
+                    workflowId: workflow.id,
+                    step: 0,
+                    content: output,
+                    timestamp: Date.now()
+                });
+            }
+            catch (memoryError) {
+                console.warn(chalk_1.default.yellow(`⚠ Warning: Failed to save to memory: ${memoryError.message}`));
+            }
             // Determine which case to execute based on the output
             let matchedCase = cases.find(c => output.includes(c.condition) || output.toLowerCase().includes(c.condition.toLowerCase()));
             if (!matchedCase && defaultStep) {
@@ -323,13 +338,18 @@ class Executor {
                 this.logContextPassing(agent, context, branch);
                 // Execute the agent with the current context
                 const output = await agent.run(context);
-                await context.memory?.save({
-                    agentId: agent.id,
-                    workflowId: workflow.id,
-                    step: index,
-                    content: output,
-                    timestamp: Date.now()
-                });
+                try {
+                    await context.memory?.save({
+                        agentId: agent.id,
+                        workflowId: workflow.id,
+                        step: index,
+                        content: output,
+                        timestamp: Date.now()
+                    });
+                }
+                catch (memoryError) {
+                    console.warn(chalk_1.default.yellow(`⚠ Warning: Failed to save to memory: ${memoryError.message}`));
+                }
                 // Append the agent's output to the context as a new message
                 context.addMessage(agent.id, output);
                 // Store outputs in the context if specified
@@ -395,13 +415,18 @@ class Executor {
                         const finalOutput = await thenAgent.run(context);
                         // Append the final agent's output to the context
                         context.addMessage(thenAgent.id, finalOutput);
-                        await context.memory?.save({
-                            agentId: thenAgent.id,
-                            workflowId: workflow.id,
-                            step: -1,
-                            content: finalOutput,
-                            timestamp: Date.now()
-                        });
+                        try {
+                            await context.memory?.save({
+                                agentId: thenAgent.id,
+                                workflowId: workflow.id,
+                                step: -1,
+                                content: finalOutput,
+                                timestamp: Date.now()
+                            });
+                        }
+                        catch (memoryError) {
+                            console.warn(chalk_1.default.yellow(`⚠ Warning: Failed to save to memory: ${memoryError.message}`));
+                        }
                         // Store outputs in the context if specified
                         if (workflow.then.outputs && workflow.then.outputs.produced) {
                             for (const outputKey of workflow.then.outputs.produced) {

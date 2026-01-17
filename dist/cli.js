@@ -486,7 +486,7 @@ yargs.default((0, helpers_1.hideBin)(process.argv))
     console.log('\n>>> WORKFLOW INFO <<<');
     console.log('ID:', workflow.id);
     console.log('Type:', workflow.type);
-    console.log('\n>>> AGENTS (${agents.length}) <<<');
+    console.log(`\n>>> AGENTS (${agents.length}) <<<`);
     for (const agent of agents) {
         console.log('- ' + agent.id + ' (' + agent.role + ')');
     }
@@ -551,6 +551,16 @@ yargs.default((0, helpers_1.hideBin)(process.argv))
         const executor = new ExecutorClass();
         try {
             await executor.execute(workflow, agents, context);
+            // Auto-clear memory after sequential workflow completion
+            try {
+                const QdrantProvider = (await Promise.resolve().then(() => __importStar(require('./memory/QdrantMemoryProvider')))).QdrantMemoryProvider;
+                const memoryProvider = new QdrantProvider();
+                await memoryProvider.clear();
+                console.log(chalk_1.default.dim('\n[Auto-clear] Memory cleared after workflow completion'));
+            }
+            catch (clearError) {
+                console.warn(chalk_1.default.yellow(`⚠ Auto-clear warning: ${clearError.message}`));
+            }
         }
         catch (error) {
             console.error(chalk_1.default.red('Execution error:'), error.message);
@@ -588,6 +598,16 @@ yargs.default((0, helpers_1.hideBin)(process.argv))
         const executor = new ExecutorClass();
         try {
             await executor.execute(workflow, agents, context);
+            // Auto-clear memory after parallel workflow completion
+            try {
+                const QdrantProvider = (await Promise.resolve().then(() => __importStar(require('./memory/QdrantMemoryProvider')))).QdrantMemoryProvider;
+                const memoryProvider = new QdrantProvider();
+                await memoryProvider.clear();
+                console.log(chalk_1.default.dim('\n[Auto-clear] Memory cleared after workflow completion'));
+            }
+            catch (clearError) {
+                console.warn(chalk_1.default.yellow(`⚠ Auto-clear warning: ${clearError.message}`));
+            }
         }
         catch (error) {
             console.error(chalk_1.default.red('Execution error:'), error.message);
@@ -870,6 +890,150 @@ yargs.default((0, helpers_1.hideBin)(process.argv))
     catch (error) {
         console.error(chalk_1.default.red('Error switching API key:'), error.message);
         process.exit(1);
+    }
+})
+    .command('query [search-term]', 'Query persistent memory using RAG (Retrieval Augmented Generation)', (yargs) => {
+    return yargs
+        .positional('search-term', {
+        describe: 'Natural language search query',
+        type: 'string',
+        default: ''
+    })
+        .option('workflow', {
+        describe: 'Filter by workflow ID',
+        type: 'string',
+        alias: 'w'
+    })
+        .option('agent', {
+        describe: 'Filter by agent ID',
+        type: 'string',
+        alias: 'a'
+    })
+        .option('limit', {
+        describe: 'Number of results to return',
+        type: 'number',
+        alias: 'l',
+        default: 5
+    });
+}, async (argv) => {
+    try {
+        const { RAGQuery } = await Promise.resolve().then(() => __importStar(require('./rag/RAGQuery')));
+        const ragQuery = new RAGQuery();
+        const searchTerm = argv['search-term'] || (argv._ && argv._[1]);
+        if (!searchTerm) {
+            console.error(chalk_1.default.red('Error: Please provide a search term'));
+            console.log(chalk_1.default.cyan('Usage: auraflow query "your search query" [options]'));
+            process.exit(1);
+        }
+        if (argv.agent) {
+            await ragQuery.searchAgent(searchTerm, argv.agent, argv.limit);
+        }
+        else if (argv.workflow) {
+            await ragQuery.searchWorkflow(searchTerm, argv.workflow, argv.limit);
+        }
+        else {
+            await ragQuery.searchGlobal(searchTerm, argv.limit);
+        }
+        setTimeout(() => process.exit(0), 100);
+    }
+    catch (error) {
+        console.error(chalk_1.default.red('Query failed:'), error.message);
+        setTimeout(() => process.exit(1), 100);
+    }
+})
+    .command('init-memory', 'Initialize Qdrant vector database collection for persistent memory', () => { }, async () => {
+    try {
+        const QdrantClient = (await Promise.resolve().then(() => __importStar(require('@qdrant/js-client-rest')))).QdrantClient;
+        const QDRANT_URL = process.env.QDRANT_URL || 'http://localhost:6333';
+        const QDRANT_API_KEY = process.env.QDRANT_API_KEY || 'qdrant-api-key-123';
+        const COLLECTION_NAME = process.env.QDRANT_COLLECTION || 'auraflow_memory';
+        console.log(chalk_1.default.cyan.bold('\n🚀 INITIALIZING QDRANT COLLECTION\n'));
+        console.log(chalk_1.default.cyan(`Connecting to Qdrant at ${QDRANT_URL}...`));
+        const client = new QdrantClient({
+            url: QDRANT_URL,
+            apiKey: QDRANT_API_KEY
+        });
+        // Check if collection already exists
+        const collections = await client.getCollections();
+        const exists = collections.collections.some((c) => c.name === COLLECTION_NAME);
+        if (exists) {
+            console.log(chalk_1.default.yellow(`⚠ Collection '${COLLECTION_NAME}' already exists.`));
+            setTimeout(() => process.exit(0), 100);
+            return;
+        }
+        // Create collection with vector configuration
+        console.log(chalk_1.default.cyan(`\nCreating collection '${COLLECTION_NAME}'...`));
+        await client.createCollection(COLLECTION_NAME, {
+            vectors: {
+                size: 384, // Xenova/all-MiniLM-L6-v2 embedding dimension
+                distance: 'Cosine'
+            }
+        });
+        console.log(chalk_1.default.green(`✓ Collection '${COLLECTION_NAME}' created successfully!`));
+        const updatedCollections = await client.getCollections();
+        const collection = updatedCollections.collections.find((c) => c.name === COLLECTION_NAME);
+        if (collection) {
+            console.log(chalk_1.default.green(`\n✓ Verified collection exists:`));
+            console.log(chalk_1.default.cyan(`  Name: ${collection.name}`));
+            console.log(chalk_1.default.cyan(`  Vector size: 384`));
+            console.log(chalk_1.default.cyan(`  Distance metric: Cosine`));
+        }
+        console.log(chalk_1.default.green.bold('\n✓ Qdrant collection initialized successfully!\n'));
+        console.log(chalk_1.default.gray('You can now run workflows with persistent memory enabled.'));
+        console.log(chalk_1.default.gray('Use: auraflow query <search-term> to retrieve memories\n'));
+        setTimeout(() => process.exit(0), 100);
+    }
+    catch (error) {
+        console.error(chalk_1.default.red('\n✘ Initialization failed:'), error.message);
+        setTimeout(() => process.exit(1), 100);
+    }
+})
+    .command('clear-memory', 'Clear all memories from the vector database', () => { }, async () => {
+    try {
+        const QdrantClient = (await Promise.resolve().then(() => __importStar(require('@qdrant/js-client-rest')))).QdrantClient;
+        const QDRANT_URL = process.env.QDRANT_URL || 'http://localhost:6333';
+        const QDRANT_API_KEY = process.env.QDRANT_API_KEY || 'qdrant-api-key-123';
+        const COLLECTION_NAME = process.env.QDRANT_COLLECTION || 'auraflow_memory';
+        console.log(chalk_1.default.cyan.bold('\n🧹 CLEARING MEMORY DATABASE\n'));
+        console.log(chalk_1.default.cyan(`Collection: ${COLLECTION_NAME}`));
+        const client = new QdrantClient({
+            url: QDRANT_URL,
+            apiKey: QDRANT_API_KEY
+        });
+        // Delete all points in the collection by deleting and recreating it
+        try {
+            // Delete collection
+            await client.deleteCollection(COLLECTION_NAME);
+            // Recreate empty collection
+            await client.createCollection(COLLECTION_NAME, {
+                vectors: {
+                    size: 384,
+                    distance: 'Cosine'
+                }
+            });
+            console.log(chalk_1.default.green(`✓ Memory cleared successfully!`));
+            console.log(chalk_1.default.cyan(`  Collection reset with 0 points`));
+        }
+        catch (innerError) {
+            console.error(chalk_1.default.yellow(`⚠ Warning: ${innerError.message}`));
+        }
+        setTimeout(() => process.exit(0), 100);
+    }
+    catch (error) {
+        console.error(chalk_1.default.red('\n✘ Failed to clear memory:'), error.message);
+        setTimeout(() => process.exit(1), 100);
+    }
+})
+    .command('memory-stats', 'Display memory and RAG statistics', () => { }, async () => {
+    try {
+        const { RAGQuery } = await Promise.resolve().then(() => __importStar(require('./rag/RAGQuery')));
+        const ragQuery = new RAGQuery();
+        await ragQuery.getStats();
+        setTimeout(() => process.exit(0), 100);
+    }
+    catch (error) {
+        console.error(chalk_1.default.red('Failed to get stats:'), error.message);
+        setTimeout(() => process.exit(1), 100);
     }
 })
     .epilogue('\n' + chalk_1.default.bold.blue('💡 QUICK START GUIDE') + '\n' +

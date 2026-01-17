@@ -5,4 +5,5 @@ export declare class QdrantMemoryProvider implements MemoryProvider {
     constructor();
     save(entry: MemoryEntry): Promise<void>;
     query(query: string, workflowId: string, limit: number): Promise<MemoryEntry[]>;
+    clear(): Promise<void>;
 }

@@ -54,18 +54,26 @@ export class QdrantMemoryProvider implements MemoryProvider {
   ): Promise<MemoryEntry[]> {
     const vector = await embed(query)
 
-    const result = await this.client.search(this.collection, {
+    // Build search parameters
+    const searchParams: any = {
       vector,
       limit,
-      filter: {
+      with_payload: true
+    };
+
+    // Only add filter if workflowId is specified and not 'all-workflows'
+    if (workflowId && workflowId !== 'all-workflows') {
+      searchParams.query_filter = {
         must: [
           {
             key: "workflowId",
             match: { value: workflowId }
           }
         ]
-      }
-    })
+      };
+    }
+
+    const result = await this.client.search(this.collection, searchParams)
 
     return result.map(r => ({
       agentId: r.payload!.agentId as string,
@@ -74,5 +82,21 @@ export class QdrantMemoryProvider implements MemoryProvider {
       content: r.payload!.content as string,
       timestamp: r.payload!.timestamp as number
     }))
+  }
+
+  async clear(): Promise<void> {
+    try {
+      await this.client.deleteCollection(this.collection)
+      
+      // Recreate the collection for future use
+      await this.client.createCollection(this.collection, {
+        vectors: {
+          size: 384,
+          distance: "Cosine"
+        }
+      })
+    } catch (error: any) {
+      throw new Error(`Failed to clear memory collection: ${error.message}`)
+    }
   }
 }
