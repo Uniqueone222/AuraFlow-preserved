@@ -1,0 +1,103 @@
+═══════════════════════════════════════════════════════════
+WORKFLOW EXECUTION OUTPUT
+Generated: 2026-01-17T23:45:18.184Z
+═══════════════════════════════════════════════════════════
+
+
+┌─────────────────────────────────────────┐
+│ WORKFLOW VISUALIZATION: demo-workflow │
+└─────────────────────────────────────────┘
+
+Workflow Type: sequential
+
+SEQUENTIAL EXECUTION FLOW:
+┌───────→───────┐
+│ re... ─→ wr... │
+└───────→───────┘
+
+STEP DETAILS:
+  [1] research_step → researcher (research_topic)
+      Outputs: research_findings
+  [2] writing_step → writer (write_summary)
+      Inputs: research_data
+      Outputs: final_summary
+
+
+>>> EXECUTION PLAN <<<
+  research_step → researcher (research_topic)
+  writing_step → writer (write_summary)
+
+>>> EXECUTION GRAPH <<<
+  researcher → writer
+
+>>> EXECUTION STARTED <<<
+Starting sequential execution...
+[WARN] Api key is used with unsecure connection.
+🧠 Memory backend: qdrant true true
+
+>>> EXECUTING WORKFLOW: demo-workflow (sequential) <<<
+Stop on error: true
+Steps: 2
+
+>>> SEQUENTIAL EXECUTION STARTED <<<
+
+[1/2] research_step → researcher (research_topic)
+  Running: researcher (Research Assistant)
+
+┌─────────────────────────────────────────────────────────┐
+│ CONTEXT PASSING TO AGENT: researcher                     │
+│ ROLE: Research Assistant                                 │
+└─────────────────────────────────────────────────────────┘
+INITIALIZATION
+-------------
+✓ Groq client initialized
+✓ API Key: gsk_gVB08OSD4GR...
+✓ Model: llama-3.1-8b-instant
+✓ Using model: llama-3.1-8b-instant
+  Output: I can start gathering information about a given topic.
+
+However, I need a topic to research. You have not provided a topic yet. If you could please provide one, I'll proceed with gathering information...
+
+┌─────────────────────────────────────────────────────────┐
+│ CONTEXT UPDATE FROM AGENT: researcher                │
+│ ROLE: Research Assistant                                 │
+│ Output added to context:                                  │
+│   → I can start gathering information about a given  │
+│ Stored under keys: research_findings                   │
+│   → research_findings                                           │
+└─────────────────────────────────────────────────────────┘
+
+[2/2] writing_step → writer (write_summary)
+  Running: writer (Content Writer)
+
+┌─────────────────────────────────────────────────────────┐
+│ CONTEXT PASSING TO AGENT: writer                         │
+│ ROLE: Content Writer                                     │
+│ Required inputs: research_data                  │
+│   → research_data: [NOT FOUND - WILL FAIL]              │
+└─────────────────────────────────────────────────────────┘
+✓ Using model: llama-3.1-8b-instant
+  Output: **Topic: The Impact of Social Media on Mental Health**
+
+To create a well-structured summary based on research, I will use the available tools to gather current information from the internet.
+
+**Summar...
+
+┌─────────────────────────────────────────────────────────┐
+│ CONTEXT UPDATE FROM AGENT: writer                    │
+│ ROLE: Content Writer                                     │
+│ Output added to context:                                  │
+│   → **Topic: The Impact of Social Media on Mental He │
+│ Stored under keys: final_summary                       │
+│   → final_summary                                           │
+└─────────────────────────────────────────────────────────┘
+
+>>> SEQUENTIAL EXECUTION COMPLETED <<<
+
+>>> FINAL RESULTS <<<
+[WARN] Api key is used with unsecure connection.
+
+[Auto-clear] Memory cleared after workflow completion
+
+>>> WORKFLOW COMPLETED SUCCESSFULLY <<<
+Execution finished. Results shown above.

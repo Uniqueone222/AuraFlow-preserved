@@ -9,9 +9,9 @@ class WorkflowVisualization {
      */
     static generateVisualization(workflow) {
         let visualization = '';
-        visualization += '┌─────────────────────────────────────────┐\n';
-        visualization += `│ WORKFLOW VISUALIZATION: ${workflow.id} │\n`;
-        visualization += '└─────────────────────────────────────────┘\n\n';
+        visualization += '+=====================================+\n';
+        visualization += `| WORKFLOW VISUALIZATION: ${workflow.id.padEnd(15)} |\n`;
+        visualization += '+=====================================+\n\n';
         visualization += `Workflow Type: ${workflow.type}\n\n`;
         switch (workflow.type) {
             case 'sequential':
@@ -36,37 +36,37 @@ class WorkflowVisualization {
      */
     static renderSequentialWorkflow(workflow) {
         let output = 'SEQUENTIAL EXECUTION FLOW:\n';
-        output += '┌─';
+        output += '+--';
         for (let i = 0; i < workflow.steps.length; i++) {
-            output += '─────';
+            output += '-----';
             if (i < workflow.steps.length - 1) {
-                output += '─→─';
+                output += '--->-';
             }
         }
-        output += '─┐\n';
-        output += '│ ';
+        output += '--+\n';
+        output += '| ';
         for (let i = 0; i < workflow.steps.length; i++) {
             const step = workflow.steps[i];
             const stepLabel = this.truncateString(step.agent, 5);
             output += stepLabel;
             if (i < workflow.steps.length - 1) {
-                output += ' ─→ ';
+                output += ' --> ';
             }
         }
-        output += ' │\n';
-        output += '└─';
+        output += ' |\n';
+        output += '+--';
         for (let i = 0; i < workflow.steps.length; i++) {
-            output += '─────';
+            output += '-----';
             if (i < workflow.steps.length - 1) {
-                output += '─→─';
+                output += '--->-';
             }
         }
-        output += '─┘\n\n';
+        output += '--+\n\n';
         // Add step details
         output += 'STEP DETAILS:\n';
         for (let i = 0; i < workflow.steps.length; i++) {
             const step = workflow.steps[i];
-            output += `  [${i + 1}] ${step.id} → ${step.agent} (${step.action})\n`;
+            output += `  [${i + 1}] ${step.id} --> ${step.agent} (${step.action})\n`;
             if (step.inputs && step.inputs.required && step.inputs.required.length > 0) {
                 output += `      Inputs: ${step.inputs.required.join(', ')}\n`;
             }
@@ -82,71 +82,71 @@ class WorkflowVisualization {
     static renderParallelWorkflow(workflow) {
         let output = 'PARALLEL EXECUTION FLOW:\n';
         // Top border
-        output += '┌─';
+        output += '+--';
         for (let i = 0; i < workflow.branches.length; i++) {
-            output += '──────────';
+            output += '----------';
             if (i < workflow.branches.length - 1) {
-                output += '─┬─';
+                output += '-+-';
             }
         }
-        output += '─┐\n';
+        output += '--+\n';
         // Agents row
-        output += '│ ';
+        output += '| ';
         for (let i = 0; i < workflow.branches.length; i++) {
             const branch = workflow.branches[i];
             const agentLabel = this.truncateString(branch.agent, 8);
             output += agentLabel.padEnd(10);
             if (i < workflow.branches.length - 1) {
-                output += ' │ ';
+                output += ' | ';
             }
         }
-        output += ' │\n';
+        output += ' |\n';
         // Middle connector
-        output += '├─';
+        output += '+--';
         for (let i = 0; i < workflow.branches.length; i++) {
-            output += '──────────';
+            output += '----------';
             if (i < workflow.branches.length - 1) {
-                output += '─┼─';
+                output += '-+-';
             }
         }
-        output += '─┤\n';
+        output += '--+\n';
         // Down arrows to converge
-        output += '│ ';
+        output += '| ';
         for (let i = 0; i < workflow.branches.length; i++) {
-            output += '    ↓     ';
+            output += '    |     ';
             if (i < workflow.branches.length - 1) {
-                output += ' │ ';
+                output += ' | ';
             }
         }
-        output += ' │\n';
+        output += ' |\n';
         // Converge to 'then' agent if exists
         if (workflow.then) {
             const thenAgentLabel = this.truncateString(workflow.then.agent, 8);
             const totalWidth = workflow.branches.length * 11 + (workflow.branches.length - 1) * 3;
-            const centeredText = thenAgentLabel.padStart((totalWidth - thenAgentLabel.length) / 2 + thenAgentLabel.length / 2)
+            const centeredText = thenAgentLabel.padStart(Math.floor((totalWidth - thenAgentLabel.length) / 2) + thenAgentLabel.length)
                 .padEnd(totalWidth);
-            output += `│ ${centeredText} │\n`;
+            output += `| ${centeredText} |\n`;
         }
         else {
             const totalWidth = workflow.branches.length * 11 + (workflow.branches.length - 1) * 3;
             const centeredText = '[RESULTS]';
-            output += `│ ${centeredText.padStart((totalWidth - centeredText.length) / 2 + centeredText.length / 2)
-                .padEnd(totalWidth)} │\n`;
+            output += `| ${centeredText.padStart(Math.floor((totalWidth - centeredText.length) / 2) + centeredText.length)
+                .padEnd(totalWidth)} |\n`;
         }
         // Bottom border
-        output += '└─';
+        output += '+--';
         for (let i = 0; i < workflow.branches.length; i++) {
-            output += '──────────';
+            output += '----------';
             if (i < workflow.branches.length - 1) {
-                output += '─┴─';
+                output += '-+-';
             }
         }
-        output += '─┘\n\n';
+        output += '--+\n\n';
         // Branch details
         output += 'BRANCH DETAILS:\n';
         for (let i = 0; i < workflow.branches.length; i++) {
             const branch = workflow.branches[i];
-            output += `  [${i + 1}] ${branch.id} → ${branch.agent} (${branch.action})\n`;
+            output += `  [${i + 1}] ${branch.id} --> ${branch.agent} (${branch.action})\n`;
             if (branch.inputs && branch.inputs.required && branch.inputs.required.length > 0) {
                 output += `      Inputs: ${branch.inputs.required.join(', ')}\n`;
             }
@@ -178,10 +178,10 @@ class WorkflowVisualization {
     static renderConditionalWorkflow(workflow) {
         let output = 'CONDITIONAL EXECUTION FLOW:\n';
         if (workflow.steps.length > 0) {
-            const initialStep = workflow.steps[0]; // Assuming first step triggers condition
+            const initialStep = workflow.steps[0];
             const initialAgentLabel = this.truncateString(initialStep.agent, 8);
-            output += `  ${initialAgentLabel} → DECISION\n`;
-            output += '           ↙      ↘\n';
+            output += `  ${initialAgentLabel} --> DECISION\n`;
+            output += '           /       \\\n';
             if (workflow.condition) {
                 for (let i = 0; i < workflow.condition.cases.length; i++) {
                     const caseStep = workflow.condition.cases[i].step;
@@ -202,10 +202,10 @@ class WorkflowVisualization {
             output += `  Decision Step: ${workflow.condition.stepId}\n`;
             output += '  Cases:\n';
             for (const c of workflow.condition.cases) {
-                output += `    If "${c.condition}" → ${c.step.agent} (${c.step.action})\n`;
+                output += `    If "${c.condition}" --> ${c.step.agent} (${c.step.action})\n`;
             }
             if (workflow.condition.default) {
-                output += `    Default → ${workflow.condition.default.agent} (${workflow.condition.default.action})\n`;
+                output += `    Default --> ${workflow.condition.default.agent} (${workflow.condition.default.action})\n`;
             }
         }
         return output;

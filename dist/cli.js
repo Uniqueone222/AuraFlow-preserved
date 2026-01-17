@@ -60,6 +60,57 @@ function displayBanner() {
 // Show banner before processing commands
 displayBanner();
 yargs.default((0, helpers_1.hideBin)(process.argv));
+// Output capture class for writing results to file
+class OutputCapture {
+    logs = [];
+    originalConsoleLog;
+    originalConsoleError;
+    originalConsoleWarn;
+    outputFile;
+    constructor(outputFile) {
+        this.outputFile = outputFile;
+        this.setupInterception();
+    }
+    setupInterception() {
+        this.originalConsoleLog = console.log;
+        this.originalConsoleError = console.error;
+        this.originalConsoleWarn = console.warn;
+        console.log = (...args) => {
+            this.logs.push(args.join(' '));
+            this.originalConsoleLog(...args);
+        };
+        console.error = (...args) => {
+            this.logs.push(`[ERROR] ${args.join(' ')}`);
+            this.originalConsoleError(...args);
+        };
+        console.warn = (...args) => {
+            this.logs.push(`[WARN] ${args.join(' ')}`);
+            this.originalConsoleWarn(...args);
+        };
+    }
+    async saveToFile() {
+        try {
+            // Ensure output directory exists
+            const outputDir = './workflow_outputs';
+            if (!fs.existsSync(outputDir)) {
+                fs.mkdirSync(outputDir, { recursive: true });
+            }
+            const fullPath = `${outputDir}/${this.outputFile}`;
+            const timestamp = new Date().toISOString();
+            const header = `═══════════════════════════════════════════════════════════\nWORKFLOW EXECUTION OUTPUT\nGenerated: ${timestamp}\n═══════════════════════════════════════════════════════════\n\n`;
+            fs.writeFileSync(fullPath, header + this.logs.join('\n'), 'utf-8');
+            this.originalConsoleLog(chalk_1.default.green(`\n✓ Output saved to: ${fullPath}`));
+        }
+        catch (error) {
+            this.originalConsoleError(chalk_1.default.red(`Failed to save output: ${error.message}`));
+        }
+    }
+    restore() {
+        console.log = this.originalConsoleLog;
+        console.error = this.originalConsoleError;
+        console.warn = this.originalConsoleWarn;
+    }
+}
 function validateWorkflow(rootYamlData) {
     const errors = [];
     // Validate agents
@@ -457,6 +508,12 @@ yargs.default((0, helpers_1.hideBin)(process.argv))
         type: 'boolean',
         description: chalk_1.default.dim('Enable web search without prompting (for testing)'),
         default: false
+    })
+        .option('output', {
+        alias: 'o',
+        type: 'string',
+        description: chalk_1.default.dim('Save workflow output to a file in workflow_outputs directory'),
+        default: null
     });
 }, async (argv) => {
     console.log(`Loading workflow from file: ${argv.file}`);
@@ -501,28 +558,28 @@ yargs.default((0, helpers_1.hideBin)(process.argv))
             for (const step of workflow.steps) {
                 const stepName = step.id ?? `step-${workflow.steps.indexOf(step) + 1}`;
                 const actionName = step.action ?? "execute";
-                console.log('  ' + stepName + ' → ' + step.agent + ' (' + actionName + ')');
+                console.log('  ' + stepName + ' --> ' + step.agent + ' (' + actionName + ')');
             }
         }
         else if (workflow.type === 'parallel') {
             if (workflow.branches.length > 0) {
-                const branchNames = workflow.branches.map(branch => branch.agent).join(' → ');
-                console.log('  ' + branchNames + (workflow.then ? ' → ' + workflow.then.agent : ''));
+                const branchNames = workflow.branches.map(branch => branch.agent).join(' --> ');
+                console.log('  ' + branchNames + (workflow.then ? ' --> ' + workflow.then.agent : ''));
             }
         }
         console.log('\n>>> EXECUTION GRAPH <<<');
         if (workflow.type === 'sequential') {
-            const agentSequence = workflow.steps.map(step => step.agent).join(' → ');
+            const agentSequence = workflow.steps.map(step => step.agent).join(' --> ');
             console.log('  ' + agentSequence);
         }
         else if (workflow.type === 'parallel') {
             if (workflow.branches.length > 0) {
                 const branchAgents = workflow.branches.map(branch => branch.agent);
                 if (workflow.then) {
-                    console.log('  ' + branchAgents.join(' → ') + ' → ' + workflow.then.agent);
+                    console.log('  ' + branchAgents.join(' --> ') + ' --> ' + workflow.then.agent);
                 }
                 else {
-                    console.log('  ' + branchAgents.join(' → '));
+                    console.log('  ' + branchAgents.join(' --> '));
                 }
             }
         }
@@ -530,16 +587,21 @@ yargs.default((0, helpers_1.hideBin)(process.argv))
         console.log('No agents executed.');
         process.exit(0);
     }
+    // Initialize output capture if output file is specified
+    let outputCapture = null;
+    if (argv.output) {
+        outputCapture = new OutputCapture(argv.output);
+    }
     if (workflow.type === 'sequential') {
         console.log('\n' + WorkflowVisualization_1.WorkflowVisualization.generateVisualization(workflow));
         console.log('\n>>> EXECUTION PLAN <<<');
         for (const step of workflow.steps) {
             const stepName = step.id ?? `step-${workflow.steps.indexOf(step) + 1}`;
             const actionName = step.action ?? "execute";
-            console.log('  ' + stepName + ' → ' + step.agent + ' (' + actionName + ')');
+            console.log('  ' + stepName + ' --> ' + step.agent + ' (' + actionName + ')');
         }
         console.log('\n>>> EXECUTION GRAPH <<<');
-        const agentSequence = workflow.steps.map(step => step.agent).join(' → ');
+        const agentSequence = workflow.steps.map(step => step.agent).join(' --> ');
         console.log('  ' + agentSequence);
         console.log('\n>>> EXECUTION STARTED <<<');
         console.log('Starting sequential execution...');
@@ -573,7 +635,7 @@ yargs.default((0, helpers_1.hideBin)(process.argv))
         for (const branch of workflow.branches) {
             const branchName = branch.id ?? `branch-${workflow.branches.indexOf(branch) + 1}`;
             const actionName = branch.action ?? "execute";
-            console.log('  ' + branchName + ' → ' + branch.agent + ' (' + actionName + ')');
+            console.log('  ' + branchName + ' --> ' + branch.agent + ' (' + actionName + ')');
         }
         if (workflow.then) {
             console.log('\n>>> THEN STEP <<<');
@@ -583,10 +645,10 @@ yargs.default((0, helpers_1.hideBin)(process.argv))
         console.log('\n>>> EXECUTION GRAPH <<<');
         const branchAgents = workflow.branches.map(branch => branch.agent);
         if (workflow.then) {
-            console.log('  ' + branchAgents.join(' → ') + ' → ' + workflow.then.agent);
+            console.log('  ' + branchAgents.join(' --> ') + ' --> ' + workflow.then.agent);
         }
         else {
-            console.log('  ' + branchAgents.join(' → '));
+            console.log('  ' + branchAgents.join(' --> '));
         }
         console.log('\n>>> EXECUTION STARTED <<<');
         console.log('Starting parallel execution...');
@@ -635,6 +697,11 @@ yargs.default((0, helpers_1.hideBin)(process.argv))
     }
     console.log('\n>>> WORKFLOW COMPLETED SUCCESSFULLY <<<');
     console.log('Execution finished. Results shown above.');
+    // Save output to file if output capture was enabled
+    if (outputCapture) {
+        await outputCapture.saveToFile();
+        outputCapture.restore();
+    }
 })
     .command('test-agent <agent-id> <file>', chalk_1.default.cyan('test-agent') + ' ' + chalk_1.default.dim('Test a specific agent from a workflow YAML file'), (yargs) => {
     return yargs

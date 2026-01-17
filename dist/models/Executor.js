@@ -151,21 +151,21 @@ class Executor {
      * @param step - The step configuration
      */
     logContextPassing(agent, context, step) {
-        console.log(`\n┌─────────────────────────────────────────────────────────┐`);
-        console.log(`│ CONTEXT PASSING TO AGENT: ${agent.id.padEnd(30)} │`);
-        console.log(`│ ROLE: ${agent.role.substring(0, 46).padEnd(50)} │`);
+        console.log(`\n+----------------------------------------------------------+`);
+        console.log(`| CONTEXT PASSING TO AGENT: ${agent.id.padEnd(30)} |`);
+        console.log(`| ROLE: ${agent.role.substring(0, 46).padEnd(50)} |`);
         // Show required inputs if specified
         if (step?.inputs?.required && step.inputs.required.length > 0) {
-            console.log(`│ Required inputs: ${step.inputs.required.join(', ').substring(0, 30).padEnd(30)} │`);
+            console.log(`| Required inputs: ${step.inputs.required.join(', ').substring(0, 30).padEnd(30)} |`);
             // Check and show the actual values of required inputs
             for (const inputKey of step.inputs.required) {
                 const inputValue = context.getOutput(inputKey);
                 if (inputValue !== undefined) {
                     const displayValue = typeof inputValue === 'string' ? inputValue.substring(0, 30) : JSON.stringify(inputValue).substring(0, 30);
-                    console.log(`│   → ${inputKey}: ${displayValue.padEnd(45)} │`);
+                    console.log(`|   --> ${inputKey}: ${displayValue.padEnd(45)} |`);
                 }
                 else {
-                    console.log(`│   → ${inputKey}: [NOT FOUND - WILL FAIL]              │`);
+                    console.log(`|   --> ${inputKey}: [NOT FOUND - WILL FAIL]              |`);
                 }
             }
         }
@@ -173,13 +173,13 @@ class Executor {
         const messages = context.getMessages();
         if (messages.length > 0) {
             const recentMessages = messages.slice(-2); // Show last 2 messages
-            console.log(`│ Recent context messages:                               │`);
+            console.log(`| Recent context messages:                               |`);
             for (const msg of recentMessages) {
                 const contentPreview = msg.content.substring(0, 25).replace(/\n/g, ' ').padEnd(25);
-                console.log(`│   ← From ${msg.agentId} (${contentPreview}) │`);
+                console.log(`|   <-- From ${msg.agentId} (${contentPreview}) |`);
             }
         }
-        console.log(`└─────────────────────────────────────────────────────────┘`);
+        console.log(`+----------------------------------------------------------+`);
     }
     /**
      * Logs the context update after an agent executes
@@ -188,21 +188,21 @@ class Executor {
      * @param outputKeys - Keys under which the output is stored
      */
     logContextUpdate(agent, output, outputKeys) {
-        console.log(`\n┌─────────────────────────────────────────────────────────┐`);
-        console.log(`│ CONTEXT UPDATE FROM AGENT: ${agent.id.padEnd(25)} │`);
-        console.log(`│ ROLE: ${agent.role.substring(0, 46).padEnd(50)} │`);
+        console.log(`\n+----------------------------------------------------------+`);
+        console.log(`| CONTEXT UPDATE FROM AGENT: ${agent.id.padEnd(25)} |`);
+        console.log(`| ROLE: ${agent.role.substring(0, 46).padEnd(50)} |`);
         // Show the output that was added to the context
         const outputPreview = output.substring(0, 50).replace(/\n/g, ' ').padEnd(50);
-        console.log(`│ Output added to context:                                  │`);
-        console.log(`│   → ${outputPreview.substring(0, 48)} │`);
+        console.log(`| Output added to context:                                  |`);
+        console.log(`|   --> ${outputPreview.substring(0, 48)} |`);
         // Show where the output was stored
         if (outputKeys.length > 0) {
-            console.log(`│ Stored under keys: ${outputKeys.join(', ').substring(0, 35).padEnd(35)} │`);
+            console.log(`| Stored under keys: ${outputKeys.join(', ').substring(0, 35).padEnd(35)} |`);
             for (const key of outputKeys) {
-                console.log(`│   → ${key}                                           │`);
+                console.log(`|   --> ${key}                                           |`);
             }
         }
-        console.log(`└─────────────────────────────────────────────────────────┘`);
+        console.log(`+----------------------------------------------------------+`);
     }
     /**
      * Executes a conditional workflow based on agent output

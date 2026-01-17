@@ -127,6 +127,66 @@ interface YamlWorkflow {
   };
 }
 
+// Output capture class for writing results to file
+class OutputCapture {
+  private logs: string[] = [];
+  private originalConsoleLog: any;
+  private originalConsoleError: any;
+  private originalConsoleWarn: any;
+  private outputFile: string;
+
+  constructor(outputFile: string) {
+    this.outputFile = outputFile;
+    this.setupInterception();
+  }
+
+  private setupInterception(): void {
+    this.originalConsoleLog = console.log;
+    this.originalConsoleError = console.error;
+    this.originalConsoleWarn = console.warn;
+
+    console.log = (...args: any[]) => {
+      this.logs.push(args.join(' '));
+      this.originalConsoleLog(...args);
+    };
+
+    console.error = (...args: any[]) => {
+      this.logs.push(`[ERROR] ${args.join(' ')}`);
+      this.originalConsoleError(...args);
+    };
+
+    console.warn = (...args: any[]) => {
+      this.logs.push(`[WARN] ${args.join(' ')}`);
+      this.originalConsoleWarn(...args);
+    };
+  }
+
+  async saveToFile(): Promise<void> {
+    try {
+      // Ensure output directory exists
+      const outputDir = './workflow_outputs';
+      if (!fs.existsSync(outputDir)) {
+        fs.mkdirSync(outputDir, { recursive: true });
+      }
+
+      const fullPath = `${outputDir}/${this.outputFile}`;
+      const timestamp = new Date().toISOString();
+      const header = `═══════════════════════════════════════════════════════════\nWORKFLOW EXECUTION OUTPUT\nGenerated: ${timestamp}\n═══════════════════════════════════════════════════════════\n\n`;
+      
+      fs.writeFileSync(fullPath, header + this.logs.join('\n'), 'utf-8');
+      this.originalConsoleLog(chalk.green(`\n✓ Output saved to: ${fullPath}`));
+    } catch (error: any) {
+      this.originalConsoleError(chalk.red(`Failed to save output: ${error.message}`));
+    }
+  }
+
+  restore(): void {
+    console.log = this.originalConsoleLog;
+    console.error = this.originalConsoleError;
+    console.warn = this.originalConsoleWarn;
+  }
+}
+
 function validateWorkflow(rootYamlData: YamlWorkflow): {
   isValid: boolean;
   errors: string[];
@@ -568,6 +628,12 @@ async function loadWorkflowFromFile(filePath: string): Promise<{ agents: Agent[]
         type: 'boolean',
         description: chalk.dim('Enable web search without prompting (for testing)'),
         default: false
+      })
+      .option('output', {
+        alias: 'o',
+        type: 'string',
+        description: chalk.dim('Save workflow output to a file in workflow_outputs directory'),
+        default: null
       });
   }, async (argv: any) => {
     console.log(`Loading workflow from file: ${argv.file}`);
@@ -620,26 +686,26 @@ async function loadWorkflowFromFile(filePath: string): Promise<{ agents: Agent[]
         for (const step of workflow.steps) {
           const stepName = step.id ?? `step-${workflow.steps.indexOf(step) + 1}`;
           const actionName = step.action ?? "execute";
-          console.log('  ' + stepName + ' → ' + step.agent + ' (' + actionName + ')');
+          console.log('  ' + stepName + ' --> ' + step.agent + ' (' + actionName + ')');
         }
       } else if (workflow.type === 'parallel') {
         if (workflow.branches.length > 0) {
-          const branchNames = workflow.branches.map(branch => branch.agent).join(' → ');
-          console.log('  ' + branchNames + (workflow.then ? ' → ' + workflow.then.agent : ''));
+          const branchNames = workflow.branches.map(branch => branch.agent).join(' --> ');
+          console.log('  ' + branchNames + (workflow.then ? ' --> ' + workflow.then.agent : ''));
         }
       }
       
       console.log('\n>>> EXECUTION GRAPH <<<');
       if (workflow.type === 'sequential') {
-        const agentSequence = workflow.steps.map(step => step.agent).join(' → ');
+        const agentSequence = workflow.steps.map(step => step.agent).join(' --> ');
         console.log('  ' + agentSequence);
       } else if (workflow.type === 'parallel') {
         if (workflow.branches.length > 0) {
           const branchAgents = workflow.branches.map(branch => branch.agent);
           if (workflow.then) {
-            console.log('  ' + branchAgents.join(' → ') + ' → ' + workflow.then.agent);
+            console.log('  ' + branchAgents.join(' --> ') + ' --> ' + workflow.then.agent);
           } else {
-            console.log('  ' + branchAgents.join(' → '));
+            console.log('  ' + branchAgents.join(' --> '));
           }
         }
       }
@@ -649,6 +715,12 @@ async function loadWorkflowFromFile(filePath: string): Promise<{ agents: Agent[]
       process.exit(0);
     }
     
+    // Initialize output capture if output file is specified
+    let outputCapture: OutputCapture | null = null;
+    if (argv.output) {
+      outputCapture = new OutputCapture(argv.output);
+    }
+    
     if (workflow.type === 'sequential') {
       console.log('\n' + WorkflowVisualization.generateVisualization(workflow));
       
@@ -656,11 +728,11 @@ async function loadWorkflowFromFile(filePath: string): Promise<{ agents: Agent[]
       for (const step of workflow.steps) {
         const stepName = step.id ?? `step-${workflow.steps.indexOf(step) + 1}`;
         const actionName = step.action ?? "execute";
-        console.log('  ' + stepName + ' → ' + step.agent + ' (' + actionName + ')');
+        console.log('  ' + stepName + ' --> ' + step.agent + ' (' + actionName + ')');
       }
       
       console.log('\n>>> EXECUTION GRAPH <<<');
-      const agentSequence = workflow.steps.map(step => step.agent).join(' → ');
+      const agentSequence = workflow.steps.map(step => step.agent).join(' --> ');
       console.log('  ' + agentSequence);
       
       console.log('\n>>> EXECUTION STARTED <<<');
@@ -697,7 +769,7 @@ async function loadWorkflowFromFile(filePath: string): Promise<{ agents: Agent[]
       for (const branch of workflow.branches) {
         const branchName = branch.id ?? `branch-${workflow.branches.indexOf(branch) + 1}`;
         const actionName = branch.action ?? "execute";
-        console.log('  ' + branchName + ' → ' + branch.agent + ' (' + actionName + ')');
+        console.log('  ' + branchName + ' --> ' + branch.agent + ' (' + actionName + ')');
       }
       
       if (workflow.then) {
@@ -709,9 +781,9 @@ async function loadWorkflowFromFile(filePath: string): Promise<{ agents: Agent[]
       console.log('\n>>> EXECUTION GRAPH <<<');
       const branchAgents = workflow.branches.map(branch => branch.agent);
       if (workflow.then) {
-        console.log('  ' + branchAgents.join(' → ') + ' → ' + workflow.then.agent);
+        console.log('  ' + branchAgents.join(' --> ') + ' --> ' + workflow.then.agent);
       } else {
-        console.log('  ' + branchAgents.join(' → '));
+        console.log('  ' + branchAgents.join(' --> '));
       }
       
       console.log('\n>>> EXECUTION STARTED <<<');
@@ -768,6 +840,12 @@ async function loadWorkflowFromFile(filePath: string): Promise<{ agents: Agent[]
         
     console.log('\n>>> WORKFLOW COMPLETED SUCCESSFULLY <<<');
     console.log('Execution finished. Results shown above.');
+    
+    // Save output to file if output capture was enabled
+    if (outputCapture) {
+      await outputCapture.saveToFile();
+      outputCapture.restore();
+    }
   })
   .command('test-agent <agent-id> <file>', 
     chalk.cyan('test-agent') + ' ' + chalk.dim('Test a specific agent from a workflow YAML file'),
