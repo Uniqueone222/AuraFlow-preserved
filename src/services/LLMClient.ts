@@ -7,6 +7,19 @@ import chalk from 'chalk';
 let isInitialized = false;
 
 /**
+ * Tool definition for function calling
+ */
+export interface ToolDefinition {
+  name: string;
+  description: string;
+  parameters: {
+    type: string;
+    properties: Record<string, any>;
+    required: string[];
+  };
+}
+
+/**
  * Multi-provider LLM client supporting Groq, Gemini, and OpenAI
  */
 export class LLMClient {
@@ -15,6 +28,7 @@ export class LLMClient {
   private gemini: any;
   private openai: any;
   private model: string;
+  private tools: ToolDefinition[] = [];
 
   constructor() {
     this.provider = process.env.LLM_PROVIDER || 'groq';
@@ -77,6 +91,34 @@ export class LLMClient {
     }
 
     this.openai = new OpenAI({ apiKey: OPENAI_API_KEY });
+  }
+
+  /**
+   * Register tools for function calling
+   */
+  registerTools(tools: ToolDefinition[]): void {
+    this.tools = tools;
+  }
+
+  /**
+   * Generate response with potential tool calls
+   */
+  async generateWithTools(prompt: string, tools: ToolDefinition[]): Promise<any> {
+    this.tools = tools;
+    try {
+      console.log(chalk.green(`✓ Using model: ${this.model}`));
+
+      if (this.provider === 'gemini') {
+        return await this.generateGeminiWithTools(prompt);
+      } else if (this.provider === 'openai') {
+        return await this.generateOpenAIWithTools(prompt);
+      } else {
+        return await this.generateGroqWithTools(prompt);
+      }
+    } catch (error: any) {
+      console.error(chalk.red(`✘ LLM API Error: ${error.message}`));
+      throw error;
+    }
   }
 
   async generate(prompt: string): Promise<string> {
@@ -155,6 +197,62 @@ export class LLMClient {
     }
   }
 
+  private async generateGeminiWithTools(prompt: string): Promise<any> {
+    try {
+      const model = this.gemini.getGenerativeModel({
+        model: this.model,
+        tools: this.tools.length > 0 ? [{ functionDeclarations: this.convertToolsToGeminiFunctions() }] : undefined
+      });
+
+      const result = await model.generateContent(prompt);
+      const response = result.response;
+
+      // Check if there are tool calls
+      if (response.functionCalls?.length > 0) {
+        return {
+          type: 'tool_calls',
+          toolCalls: response.functionCalls.map((call: any) => ({
+            name: call.name,
+            arguments: call.args || {}
+          })),
+          rawResponse: response
+        };
+      }
+
+      // Return text response
+      const text = response.text();
+      return {
+        type: 'text',
+        content: text,
+        rawResponse: response
+      };
+    } catch (error: any) {
+      let errorMessage = error.message || 'Unknown error';
+
+      if (error.message?.includes('RESOURCE_EXHAUSTED')) {
+        errorMessage = 'Rate limit exceeded on Gemini API. Please try again later.';
+      } else if (error.message?.includes('PERMISSION_DENIED')) {
+        errorMessage = 'Invalid or expired Gemini API key. Please check your GEMINI_API_KEY.';
+      } else if (error.message?.includes('NOT_FOUND')) {
+        errorMessage = `Model '${this.model}' not found. Available Gemini models: gemini-1.5-pro, gemini-1.5-flash`;
+      }
+
+      throw new Error(`Gemini Generation with tools failed: ${errorMessage}`);
+    }
+  }
+
+  private convertToolsToGeminiFunctions(): any[] {
+    return this.tools.map(tool => ({
+      name: tool.name,
+      description: tool.description,
+      parameters: {
+        type: 'OBJECT',
+        properties: tool.parameters.properties,
+        required: tool.parameters.required
+      }
+    }));
+  }
+
   private async generateOpenAI(prompt: string): Promise<string> {
     try {
       const chatCompletion = await this.openai.chat.completions.create({
@@ -185,6 +283,119 @@ export class LLMClient {
 
       console.error(chalk.dim(`Status: ${error.status || 'unknown'}`));
       throw new Error(`OpenAI Generation failed: ${errorMessage}`);
+    }
+  }
+
+  private async generateOpenAIWithTools(prompt: string): Promise<any> {
+    try {
+      const tools = this.tools.map(tool => ({
+        type: 'function',
+        function: {
+          name: tool.name,
+          description: tool.description,
+          parameters: tool.parameters
+        }
+      }));
+
+      const chatCompletion = await this.openai.chat.completions.create({
+        messages: [
+          { role: 'user', content: prompt }
+        ],
+        model: this.model,
+        tools: tools.length > 0 ? tools : undefined,
+        tool_choice: tools.length > 0 ? 'auto' : undefined
+      });
+
+      const message = chatCompletion.choices[0]?.message;
+
+      // Check if there are tool calls
+      if (message?.tool_calls?.length > 0) {
+        return {
+          type: 'tool_calls',
+          toolCalls: message.tool_calls.map((call: any) => ({
+            name: call.function.name,
+            arguments: JSON.parse(call.function.arguments)
+          })),
+          rawResponse: message
+        };
+      }
+
+      return {
+        type: 'text',
+        content: message?.content || '',
+        rawResponse: message
+      };
+    } catch (error: any) {
+      let errorMessage = error.message || 'Unknown error';
+
+      if (error.status === 404) {
+        errorMessage = `Model '${this.model}' not found. Available models: gpt-4, gpt-4-turbo, gpt-3.5-turbo`;
+      } else if (error.status === 401) {
+        errorMessage = 'Invalid or expired OpenAI API key. Please check your OPENAI_API_KEY.';
+      } else if (error.status === 429) {
+        errorMessage = 'Rate limit exceeded on OpenAI API. Please try again later.';
+      } else if (error.status === 500) {
+        errorMessage = 'OpenAI API server error. Please try again later.';
+      }
+
+      console.error(chalk.dim(`Status: ${error.status || 'unknown'}`));
+      throw new Error(`OpenAI Generation with tools failed: ${errorMessage}`);
+    }
+  }
+
+  private async generateGroqWithTools(prompt: string): Promise<any> {
+    try {
+      const tools = this.tools.map(tool => ({
+        type: 'function',
+        function: {
+          name: tool.name,
+          description: tool.description,
+          parameters: tool.parameters
+        }
+      }));
+
+      const chatCompletion = await this.client.chat.completions.create({
+        messages: [
+          { role: 'user', content: prompt }
+        ],
+        model: this.model,
+        tools: tools.length > 0 ? tools : undefined
+      });
+
+      const message = chatCompletion.choices[0]?.message;
+
+      // Check if there are tool calls
+      if (message?.tool_calls?.length > 0) {
+        return {
+          type: 'tool_calls',
+          toolCalls: message.tool_calls.map((call: any) => ({
+            name: call.function.name,
+            arguments: JSON.parse(call.function.arguments)
+          })),
+          rawResponse: message
+        };
+      }
+
+      return {
+        type: 'text',
+        content: message?.content || '',
+        rawResponse: message
+      };
+    } catch (error: any) {
+      let errorMessage = error.message || 'Unknown error';
+
+      if (error.status === 404) {
+        errorMessage = `Model '${this.model}' not found or not available with your API key.`;
+      } else if (error.status === 401) {
+        errorMessage = 'Invalid or expired Groq API key. Please check your GROQ_API_KEY.';
+      } else if (error.status === 429) {
+        errorMessage = 'Rate limit exceeded. Please try again later.';
+      } else if (error.status === 500) {
+        errorMessage = 'Groq API server error. Please try again later.';
+      }
+
+      console.error(chalk.dim(`Status: ${error.status || 'unknown'}`));
+      throw new Error(`Groq Generation with tools failed: ${errorMessage}`);
     }
   }
 }

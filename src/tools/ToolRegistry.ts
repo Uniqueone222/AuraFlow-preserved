@@ -20,7 +20,7 @@ export class ToolRegistry {
       maxResults: 5,
       region: 'us-en'
     }));
-    
+
     // Register file system tool
     this.tools.set('file_system', new FileSystemTool('./'));
   }
@@ -67,9 +67,30 @@ export class ToolRegistry {
     if (toolName === 'web_search' && tool.search) {
       return await tool.search(params.query);
     }
-    
+
     if (toolName === 'file_system' && tool.execute) {
-      return await tool.execute(params.operation, params.params);
+      // Normalize arguments
+      let operation = params.operation || params.action || params.command;
+      let toolParams = params.params || params;
+
+      // Map 'create' to 'write' if content is present, otherwise 'create_dir' if recursive is present, or error
+      if (operation === 'create') {
+        if (toolParams.content) {
+          operation = 'write';
+        } else {
+          operation = 'create_dir';
+        }
+      }
+
+      // Map 'filePath' or 'filename' to 'path'
+      if (!toolParams.path) {
+        toolParams.path = toolParams.filePath || toolParams.filename || toolParams.destination;
+      }
+
+      // If no directory specified for write, assume current or workflow_outputs
+      // (The tool implementation defaults to '.' if path is missing but we mapped it)
+
+      return await tool.execute(operation, toolParams);
     }
 
     throw new Error(`Tool '${toolName}' execution method not implemented`);

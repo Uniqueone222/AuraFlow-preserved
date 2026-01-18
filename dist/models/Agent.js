@@ -131,6 +131,157 @@ Do not ask questions. Complete the task independently and return a final answer.
         return prompt;
     }
     /**
+     * Runs the agent with tools support, handling tool calls in a loop
+     * @param context - The shared context containing messages
+     * @returns Promise resolving to the agent's output
+     */
+    async runWithTools(context) {
+        // Initialize the LLM client if not already done
+        if (!this.llmClient) {
+            this.llmClient = new LLMClient_1.LLMClient();
+        }
+        // Build tool definitions if tools are available
+        const toolDefinitions = this.buildToolDefinitions();
+        // Construct a prompt using the agent's role, goal, and the current context
+        const prompt = this.buildPrompt(context);
+        let response;
+        let iterations = 0;
+        const maxIterations = 5; // Prevent infinite loops
+        while (iterations < maxIterations) {
+            iterations++;
+            // Call the LLM client with tool definitions if available
+            if (toolDefinitions.length > 0) {
+                response = await this.llmClient.generateWithTools(prompt, toolDefinitions);
+            }
+            else {
+                response = await this.llmClient.generate(prompt);
+                response = { type: 'text', content: response };
+            }
+            // Handle tool calls
+            if (response.type === 'tool_calls' && response.toolCalls?.length > 0) {
+                console.log(`  📞 Agent ${this.id} received ${response.toolCalls.length} tool call(s)`);
+                const toolResults = await this.processToolCalls(response.toolCalls);
+                // Continue the conversation with tool results
+                // In a real implementation, you'd append this to the conversation and call the LLM again
+                // For now, we'll return the tool results as the final response
+                return toolResults;
+            }
+            // If we get a text response, we're done
+            if (response.type === 'text') {
+                return response.content;
+            }
+            // If we get here, something unexpected happened
+            break;
+        }
+        return response?.content || 'No response generated';
+    }
+    /**
+     * Builds tool definitions from registered tools
+     * @returns Array of tool definitions
+     */
+    buildToolDefinitions() {
+        if (!this.tools || this.tools.length === 0 || !this.toolRegistry) {
+            return [];
+        }
+        const toolDefs = [];
+        for (const toolName of this.tools) {
+            if (toolName === 'web_search') {
+                toolDefs.push({
+                    name: 'web_search',
+                    description: 'Search the web for current information and news. Returns relevant search results with sources.',
+                    parameters: {
+                        type: 'object',
+                        properties: {
+                            query: {
+                                type: 'string',
+                                description: 'The search query to execute'
+                            },
+                            maxResults: {
+                                type: 'number',
+                                description: 'Maximum number of results to return (default: 5)'
+                            }
+                        },
+                        required: ['query']
+                    }
+                });
+            }
+            else if (toolName === 'file_system') {
+                toolDefs.push({
+                    name: 'file_system',
+                    description: 'Create, read, and manage files in the workflow_outputs directory.',
+                    parameters: {
+                        type: 'object',
+                        properties: {
+                            action: {
+                                type: 'string',
+                                enum: ['create', 'read', 'append', 'delete', 'list'],
+                                description: 'The file operation to perform'
+                            },
+                            filePath: {
+                                type: 'string',
+                                description: 'Path to the file (relative to workflow_outputs)'
+                            },
+                            content: {
+                                type: 'string',
+                                description: 'Content to write (for create/append actions)'
+                            }
+                        },
+                        required: ['action', 'filePath']
+                    }
+                });
+            }
+        }
+        return toolDefs;
+    }
+    /**
+     * Executes a tool call and returns the result
+     * @param toolName - Name of the tool to execute
+     * @param args - Arguments for the tool
+     * @returns Promise resolving to the tool result
+     */
+    async executeTool(toolName, args) {
+        if (!this.toolRegistry) {
+            return `ERROR: Tool registry not available`;
+        }
+        try {
+            if (toolName === 'web_search') {
+                const result = await this.toolRegistry.executeTool('web_search', {
+                    query: args.query,
+                    maxResults: args.maxResults || 5
+                });
+                return JSON.stringify(result);
+            }
+            else if (toolName === 'file_system') {
+                const result = await this.toolRegistry.executeTool('file_system', {
+                    action: args.action,
+                    filePath: args.filePath,
+                    content: args.content
+                });
+                return JSON.stringify(result);
+            }
+            return `ERROR: Unknown tool ${toolName}`;
+        }
+        catch (error) {
+            return `ERROR executing tool ${toolName}: ${error.message}`;
+        }
+    }
+    /**
+     * Processes tool calls from the LLM response and executes them
+     * @param toolCalls - Array of tool calls to execute
+     * @returns Formatted tool results
+     */
+    async processToolCalls(toolCalls) {
+        const results = [];
+        for (const toolCall of toolCalls) {
+            const toolName = toolCall.name;
+            const args = toolCall.arguments || {};
+            console.log(`  🔧 Executing tool: ${toolName} with args:`, args);
+            const result = await this.executeTool(toolName, args);
+            results.push(`Tool: ${toolName}\nArguments: ${JSON.stringify(args)}\nResult: ${result}`);
+        }
+        return `Tool execution results:\n${results.join('\n---\n')}`;
+    }
+    /**
      * Checks if the agent's output contains a delegation instruction
      * @param output - The agent's output
      * @returns The delegation instruction if found, null otherwise
@@ -147,7 +298,7 @@ Do not ask questions. Complete the task independently and return a final answer.
         return null;
     }
     /**
-     * Runs the agent with the given context, handling potential sub-agent delegations
+     * Runs the agent with the given context, handling potential sub-agent delegations and tool calls
      * @param context - The shared context containing messages
      * @returns Promise resolving to the agent's output
      */
@@ -156,6 +307,11 @@ Do not ask questions. Complete the task independently and return a final answer.
         if (!this.llmClient) {
             this.llmClient = new LLMClient_1.LLMClient();
         }
+        // Check if agent has tools - if so, use the tools-enabled flow
+        if (this.tools && this.tools.length > 0 && this.toolRegistry) {
+            return this.runWithTools(context);
+        }
+        // Otherwise use the original delegation-based flow
         // Construct a prompt using the agent's role, goal, and the current context
         const prompt = this.buildPrompt(context);
         // Call the LLM client to generate a response

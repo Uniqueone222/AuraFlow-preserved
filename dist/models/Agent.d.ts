@@ -47,6 +47,30 @@ export declare class Agent {
      */
     private buildPrompt;
     /**
+     * Runs the agent with tools support, handling tool calls in a loop
+     * @param context - The shared context containing messages
+     * @returns Promise resolving to the agent's output
+     */
+    runWithTools(context: Context): Promise<string>;
+    /**
+     * Builds tool definitions from registered tools
+     * @returns Array of tool definitions
+     */
+    private buildToolDefinitions;
+    /**
+     * Executes a tool call and returns the result
+     * @param toolName - Name of the tool to execute
+     * @param args - Arguments for the tool
+     * @returns Promise resolving to the tool result
+     */
+    private executeTool;
+    /**
+     * Processes tool calls from the LLM response and executes them
+     * @param toolCalls - Array of tool calls to execute
+     * @returns Formatted tool results
+     */
+    private processToolCalls;
+    /**
      * Checks if the agent's output contains a delegation instruction
      * @param output - The agent's output
      * @returns The delegation instruction if found, null otherwise
@@ -56,7 +80,7 @@ export declare class Agent {
         task: string;
     } | null;
     /**
-     * Runs the agent with the given context, handling potential sub-agent delegations
+     * Runs the agent with the given context, handling potential sub-agent delegations and tool calls
      * @param context - The shared context containing messages
      * @returns Promise resolving to the agent's output
      */
