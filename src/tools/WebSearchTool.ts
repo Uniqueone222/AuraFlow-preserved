@@ -1,4 +1,5 @@
 import chalk from 'chalk';
+import { Logger, LogLevel } from '../utils/Logger';
 
 /**
  * WebSearchTool - DuckDuckGo search integration
@@ -8,10 +9,12 @@ export class WebSearchTool {
   private static readonly BASE_URL = 'https://api.duckduckgo.com/';
   private maxResults: number;
   private region: string;
+  private logger: Logger;
 
   constructor(config: { maxResults?: number; region?: string } = {}) {
     this.maxResults = config.maxResults || 10;
     this.region = config.region || 'us-en';
+    this.logger = Logger.getInstance();
   }
 
   /**
@@ -23,6 +26,14 @@ export class WebSearchTool {
     try {
       console.log(chalk.blue.bold(`🔍 🔍 🔍 INTERNET SEARCH ACTIVATED: "${query}"`));
       
+      const startTime = Date.now();
+      const correlationId = this.logger.logNetworkRequest(
+        'GET',
+        `${WebSearchTool.BASE_URL}?q=${encodeURIComponent(query)}&format=json`,
+        'DuckDuckGo',
+        query.length
+      );
+
       const url = new URL(WebSearchTool.BASE_URL);
       url.searchParams.append('q', query);
       url.searchParams.append('format', 'json');
@@ -36,7 +47,16 @@ export class WebSearchTool {
         }
       });
 
+      const duration = Date.now() - startTime;
+
       if (!response.ok) {
+        this.logger.logNetworkResponse(
+          correlationId,
+          response.status,
+          0,
+          duration,
+          `HTTP error ${response.status}`
+        );
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       
@@ -83,9 +103,17 @@ export class WebSearchTool {
         });
       }
 
+      this.logger.logNetworkResponse(
+        correlationId,
+        200,
+        JSON.stringify(results).length,
+        duration
+      );
+
       console.log(chalk.blue.bold(`✅ ✅ ✅ INTERNET SEARCH COMPLETED: Found ${results.length} results`));
       return results;
     } catch (error: any) {
+      this.logger.log(LogLevel.ERROR, `Web search failed: ${error.message}`, { query });
       console.error('❌ Web search failed:', error.message);
       throw new Error(`Web search failed: ${error.message}`);
     }

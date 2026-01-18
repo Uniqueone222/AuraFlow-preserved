@@ -1,7 +1,6 @@
 import { MemoryProvider } from "../memory/MemoryProvider";
 import { QdrantMemoryProvider } from "../memory/QdrantMemoryProvider";
-
-
+import { Logger } from "../utils/Logger";
 
 export interface Message {
   id: string;
@@ -17,6 +16,8 @@ export interface Message {
 export class Context {
 
   memory?: MemoryProvider;
+  private logger: Logger;
+  sessionId: string;
 
   /**
    * Ordered list of messages that agents can read
@@ -34,18 +35,23 @@ export class Context {
   constructor() {
   this.messages = [];
   this.outputs = new Map();
+  this.logger = Logger.getInstance();
+  this.sessionId = this.logger.getSessionId();
 
   this.memory =
     process.env.MEMORY_BACKEND === "qdrant"
       ? new QdrantMemoryProvider()
       : undefined as any; // fallback handled later
 
-      console.log(
-  "🧠 Memory backend:",
-  process.env.MEMORY_BACKEND,
-  !!process.env.QDRANT_URL,
-  !!process.env.QDRANT_API_KEY
-);
+  this.logger.log(
+    (require('../utils/Logger').LogLevel as any).INFO,
+    "🧠 Memory backend initialized",
+    {
+      backend: process.env.MEMORY_BACKEND,
+      hasQdrantUrl: !!process.env.QDRANT_URL,
+      hasQdrantKey: !!process.env.QDRANT_API_KEY
+    }
+  );
 
 }
 

@@ -876,6 +876,15 @@ async function loadWorkflowFromFile(filePath: string): Promise<{ agents: Agent[]
     console.log('\n>>> WORKFLOW COMPLETED SUCCESSFULLY <<<');
     console.log('Execution finished. Results shown above.');
     
+    // Write session logs summary
+    try {
+      const LoggerClass = (await import('./utils/Logger')).Logger;
+      const logger = LoggerClass.getInstance();
+      logger.writeSummary();
+    } catch (logError: any) {
+      console.warn(chalk.yellow(`⚠ Warning: Failed to write logs summary: ${logError.message}`));
+    }
+    
     // Save output to file if output capture was enabled
     if (outputCapture) {
       await outputCapture.saveToFile();

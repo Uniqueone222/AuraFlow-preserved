@@ -2,6 +2,7 @@ import Groq from 'groq-sdk';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import OpenAI from 'openai';
 import chalk from 'chalk';
+import { Logger, LogLevel } from '../utils/Logger';
 
 // Track if the client has been initialized to prevent duplicate logs
 let isInitialized = false;
@@ -29,10 +30,12 @@ export class LLMClient {
   private openai: any;
   private model: string;
   private tools: ToolDefinition[] = [];
+  private logger: Logger;
 
   constructor() {
     this.provider = process.env.LLM_PROVIDER || 'groq';
     this.model = process.env.CURRENT_AI_MODEL || 'llama-3.1-8b-instant';
+    this.logger = Logger.getInstance();
 
     // Initialize provider-specific client
     if (this.provider === 'gemini') {
@@ -50,6 +53,10 @@ export class LLMClient {
       console.log(chalk.green('-------------'));
       console.log(chalk.green(`✓ ${this.provider.charAt(0).toUpperCase() + this.provider.slice(1)} client initialized`));
       console.log(chalk.green(`✓ Model: ${this.model}`));
+      this.logger.logSessionEvent('LLM Client Initialized', undefined, undefined, undefined, {
+        provider: this.provider,
+        model: this.model
+      });
       isInitialized = true;
     }
   }
@@ -140,6 +147,14 @@ export class LLMClient {
 
   private async generateGroq(prompt: string): Promise<string> {
     try {
+      const startTime = Date.now();
+      const correlationId = this.logger.logNetworkRequest(
+        'POST',
+        'https://api.groq.com/openai/v1/chat/completions',
+        'Groq',
+        prompt.length
+      );
+
       const chatCompletion = await this.client.chat.completions.create({
         messages: [
           { role: 'user', content: prompt }
@@ -147,13 +162,23 @@ export class LLMClient {
         model: this.model
       });
 
+      const duration = Date.now() - startTime;
       const response = chatCompletion.choices[0]?.message?.content;
+      
+      this.logger.logNetworkResponse(
+        correlationId,
+        200,
+        response?.length || 0,
+        duration
+      );
+
       if (!response) {
         throw new Error('Empty response from Groq API');
       }
 
       return response;
     } catch (error: any) {
+      const duration = Date.now() - (error.startTime || Date.now());
       let errorMessage = error.message || 'Unknown error';
 
       if (error.status === 404) {
@@ -166,6 +191,7 @@ export class LLMClient {
         errorMessage = 'Groq API server error. Please try again later.';
       }
 
+      this.logger.log(LogLevel.ERROR, `Groq API Error: ${errorMessage}`, { status: error.status });
       console.error(chalk.dim(`Status: ${error.status || 'unknown'}`));
       throw new Error(`Groq Generation failed: ${errorMessage}`);
     }
@@ -173,9 +199,25 @@ export class LLMClient {
 
   private async generateGemini(prompt: string): Promise<string> {
     try {
+      const startTime = Date.now();
+      const correlationId = this.logger.logNetworkRequest(
+        'POST',
+        'https://generativelanguage.googleapis.com/v1beta/models',
+        'Gemini',
+        prompt.length
+      );
+
       const model = this.gemini.getGenerativeModel({ model: this.model });
       const result = await model.generateContent(prompt);
       const response = result.response.text();
+      const duration = Date.now() - startTime;
+
+      this.logger.logNetworkResponse(
+        correlationId,
+        200,
+        response?.length || 0,
+        duration
+      );
 
       if (!response) {
         throw new Error('Empty response from Gemini API');
@@ -184,6 +226,7 @@ export class LLMClient {
       return response;
     } catch (error: any) {
       let errorMessage = error.message || 'Unknown error';
+      const statusCode = error.status || 500;
 
       if (error.message?.includes('RESOURCE_EXHAUSTED')) {
         errorMessage = 'Rate limit exceeded on Gemini API. Please try again later.';
@@ -193,6 +236,7 @@ export class LLMClient {
         errorMessage = `Model '${this.model}' not found. Available Gemini models: gemini-1.5-pro, gemini-1.5-flash`;
       }
 
+      this.logger.log(LogLevel.ERROR, `Gemini API Error: ${errorMessage}`, { error: error.message });
       throw new Error(`Gemini Generation failed: ${errorMessage}`);
     }
   }
@@ -255,6 +299,14 @@ export class LLMClient {
 
   private async generateOpenAI(prompt: string): Promise<string> {
     try {
+      const startTime = Date.now();
+      const correlationId = this.logger.logNetworkRequest(
+        'POST',
+        'https://api.openai.com/v1/chat/completions',
+        'OpenAI',
+        prompt.length
+      );
+
       const chatCompletion = await this.openai.chat.completions.create({
         messages: [
           { role: 'user', content: prompt }
@@ -262,7 +314,16 @@ export class LLMClient {
         model: this.model
       });
 
+      const duration = Date.now() - startTime;
       const response = chatCompletion.choices[0]?.message?.content;
+      
+      this.logger.logNetworkResponse(
+        correlationId,
+        200,
+        response?.length || 0,
+        duration
+      );
+
       if (!response) {
         throw new Error('Empty response from OpenAI API');
       }
@@ -281,6 +342,7 @@ export class LLMClient {
         errorMessage = 'OpenAI API server error. Please try again later.';
       }
 
+      this.logger.log(LogLevel.ERROR, `OpenAI API Error: ${errorMessage}`, { status: error.status });
       console.error(chalk.dim(`Status: ${error.status || 'unknown'}`));
       throw new Error(`OpenAI Generation failed: ${errorMessage}`);
     }
