@@ -4,6 +4,8 @@
 
 A comprehensive logging system has been implemented to track network requests, API interactions, and session events throughout workflow execution. All logs are both displayed in the console (with colored output) and persisted to files for later analysis.
 
+The system now includes a **structured query interface** for programmatic log analysis. See [STRUCTURED_LOG_QUERIES.md](STRUCTURED_LOG_QUERIES.md) for detailed query examples.
+
 ## Features
 
 ### 1. **Network Request Logging**

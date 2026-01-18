@@ -411,6 +411,398 @@ export class Logger {
   setFileEnabled(enabled: boolean): void {
     this.enableFile = enabled;
   }
+
+  /**
+   * Query interface for structured log analysis
+   */
+
+  /**
+   * Query network logs with filters
+   */
+  queryNetworkLogs(filters: {
+    sessionId?: string;
+    provider?: string;
+    method?: string;
+    statusCode?: number;
+    minDuration?: number;
+    maxDuration?: number;
+    errorOnly?: boolean;
+    startTime?: string;
+    endTime?: string;
+  } = {}): NetworkLog[] {
+    let results = [...this.networkLogs];
+
+    if (filters.sessionId) {
+      results = results.filter(log => log.sessionId === filters.sessionId);
+    }
+
+    if (filters.provider) {
+      results = results.filter(log =>
+        log.provider.toLowerCase().includes(filters.provider!.toLowerCase())
+      );
+    }
+
+    if (filters.method) {
+      results = results.filter(log => log.method === filters.method);
+    }
+
+    if (filters.statusCode) {
+      results = results.filter(log => log.statusCode === filters.statusCode);
+    }
+
+    if (filters.minDuration !== undefined) {
+      results = results.filter(log => log.duration >= filters.minDuration!);
+    }
+
+    if (filters.maxDuration !== undefined) {
+      results = results.filter(log => log.duration <= filters.maxDuration!);
+    }
+
+    if (filters.errorOnly) {
+      results = results.filter(log => log.status === 'error');
+    }
+
+    if (filters.startTime) {
+      const startTime = new Date(filters.startTime).getTime();
+      results = results.filter(log => new Date(log.timestamp).getTime() >= startTime);
+    }
+
+    if (filters.endTime) {
+      const endTime = new Date(filters.endTime).getTime();
+      results = results.filter(log => new Date(log.timestamp).getTime() <= endTime);
+    }
+
+    return results;
+  }
+
+  /**
+   * Query session logs with filters
+   */
+  querySessionLogs(filters: {
+    sessionId?: string;
+    event?: string;
+    workflowId?: string;
+    agentId?: string;
+    stepId?: string;
+    startTime?: string;
+    endTime?: string;
+  } = {}): SessionLog[] {
+    let results = [...this.sessionLogs];
+
+    if (filters.sessionId) {
+      results = results.filter(log => log.sessionId === filters.sessionId);
+    }
+
+    if (filters.event) {
+      results = results.filter(log =>
+        log.event.toLowerCase().includes(filters.event!.toLowerCase())
+      );
+    }
+
+    if (filters.workflowId) {
+      results = results.filter(log => log.workflowId === filters.workflowId);
+    }
+
+    if (filters.agentId) {
+      results = results.filter(log => log.agentId === filters.agentId);
+    }
+
+    if (filters.stepId) {
+      results = results.filter(log => log.stepId === filters.stepId);
+    }
+
+    if (filters.startTime) {
+      const startTime = new Date(filters.startTime).getTime();
+      results = results.filter(log => new Date(log.timestamp).getTime() >= startTime);
+    }
+
+    if (filters.endTime) {
+      const endTime = new Date(filters.endTime).getTime();
+      results = results.filter(log => new Date(log.timestamp).getTime() <= endTime);
+    }
+
+    return results;
+  }
+
+  /**
+   * Get execution timeline - all events sorted by timestamp
+   */
+  getExecutionTimeline(sessionId?: string): Array<{
+    timestamp: string;
+    type: 'network' | 'session';
+    data: NetworkLog | SessionLog;
+  }> {
+    const events: Array<{
+      timestamp: string;
+      type: 'network' | 'session';
+      data: NetworkLog | SessionLog;
+    }> = [];
+
+    const networkEvents = (sessionId
+      ? this.networkLogs.filter(log => log.sessionId === sessionId)
+      : this.networkLogs
+    ).map(data => ({ timestamp: data.timestamp, type: 'network' as const, data }));
+
+    const sessionEvents = (sessionId
+      ? this.sessionLogs.filter(log => log.sessionId === sessionId)
+      : this.sessionLogs
+    ).map(data => ({ timestamp: data.timestamp, type: 'session' as const, data }));
+
+    events.push(...networkEvents, ...sessionEvents);
+    events.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+
+    return events;
+  }
+
+  /**
+   * Get agent execution summary
+   */
+  getAgentExecutionSummary(agentId?: string): {
+    agent: string;
+    eventCount: number;
+    events: SessionLog[];
+    averageResponseTime?: number;
+  }[] {
+    const summaries: Map<
+      string,
+      { eventCount: number; events: SessionLog[]; responseTimes: number[] }
+    > = new Map();
+
+    this.sessionLogs.forEach(log => {
+      if (agentId && log.agentId !== agentId) return;
+
+      if (log.agentId) {
+        const key = log.agentId;
+        if (!summaries.has(key)) {
+          summaries.set(key, { eventCount: 0, events: [], responseTimes: [] });
+        }
+
+        const summary = summaries.get(key)!;
+        summary.eventCount++;
+        summary.events.push(log);
+
+        // Track response times from start to completion events
+        if (log.event === 'Agent Execution Completed' && log.details?.duration) {
+          summary.responseTimes.push(log.details.duration);
+        }
+      }
+    });
+
+    return Array.from(summaries.entries()).map(([agent, summary]) => ({
+      agent,
+      eventCount: summary.eventCount,
+      events: summary.events,
+      averageResponseTime:
+        summary.responseTimes.length > 0
+          ? Math.round(
+              summary.responseTimes.reduce((a, b) => a + b, 0) /
+                summary.responseTimes.length
+            )
+          : undefined
+    }));
+  }
+
+  /**
+   * Get provider statistics
+   */
+  getProviderStats(provider?: string): {
+    provider: string;
+    requestCount: number;
+    successCount: number;
+    errorCount: number;
+    averageDuration: number;
+    totalDuration: number;
+  }[] {
+    const stats: Map<
+      string,
+      {
+        requestCount: number;
+        successCount: number;
+        errorCount: number;
+        durations: number[];
+      }
+    > = new Map();
+
+    this.networkLogs.forEach(log => {
+      if (provider && log.provider !== provider) return;
+
+      const key = log.provider;
+      if (!stats.has(key)) {
+        stats.set(key, { requestCount: 0, successCount: 0, errorCount: 0, durations: [] });
+      }
+
+      const stat = stats.get(key)!;
+      stat.requestCount++;
+      if (log.status === 'success') {
+        stat.successCount++;
+      } else {
+        stat.errorCount++;
+      }
+      stat.durations.push(log.duration);
+    });
+
+    return Array.from(stats.entries()).map(([prov, stat]) => ({
+      provider: prov,
+      requestCount: stat.requestCount,
+      successCount: stat.successCount,
+      errorCount: stat.errorCount,
+      averageDuration:
+        stat.durations.length > 0
+          ? Math.round(stat.durations.reduce((a, b) => a + b, 0) / stat.durations.length)
+          : 0,
+      totalDuration: stat.durations.reduce((a, b) => a + b, 0)
+    }));
+  }
+
+  /**
+   * Get workflow execution stats
+   */
+  getWorkflowStats(workflowId?: string): {
+    workflowId: string;
+    eventCount: number;
+    agentCount: number;
+    startTime?: string;
+    endTime?: string;
+    duration?: number;
+    status: 'pending' | 'completed' | 'failed';
+  }[] {
+    const stats: Map<
+      string,
+      {
+        events: SessionLog[];
+        agents: Set<string>;
+        startTime?: string;
+        endTime?: string;
+        status: 'pending' | 'completed' | 'failed';
+      }
+    > = new Map();
+
+    this.sessionLogs.forEach(log => {
+      if (workflowId && log.workflowId !== workflowId) return;
+
+      if (log.workflowId) {
+        const key = log.workflowId;
+        if (!stats.has(key)) {
+          stats.set(key, {
+            events: [],
+            agents: new Set(),
+            status: 'pending'
+          });
+        }
+
+        const stat = stats.get(key)!;
+        stat.events.push(log);
+
+        if (log.agentId) {
+          stat.agents.add(log.agentId);
+        }
+
+        if (log.event === 'Workflow Execution Started') {
+          stat.startTime = log.timestamp;
+        }
+
+        if (log.event === 'Workflow Execution Completed') {
+          stat.endTime = log.timestamp;
+          stat.status = 'completed';
+        }
+
+        if (log.event === 'Workflow Execution Failed') {
+          stat.status = 'failed';
+        }
+      }
+    });
+
+    return Array.from(stats.entries()).map(([wfId, stat]) => ({
+      workflowId: wfId,
+      eventCount: stat.events.length,
+      agentCount: stat.agents.size,
+      startTime: stat.startTime,
+      endTime: stat.endTime,
+      duration:
+        stat.startTime && stat.endTime
+          ? new Date(stat.endTime).getTime() - new Date(stat.startTime).getTime()
+          : undefined,
+      status: stat.status
+    }));
+  }
+
+  /**
+   * Export logs as structured JSON
+   */
+  exportLogs(format: 'json' | 'csv' = 'json'): string {
+    if (format === 'json') {
+      return JSON.stringify(
+        {
+          sessionId: this.sessionId,
+          exportedAt: new Date().toISOString(),
+          networkLogs: this.networkLogs,
+          sessionLogs: this.sessionLogs
+        },
+        null,
+        2
+      );
+    } else {
+      // CSV format
+      let csv = 'timestamp,type,event,agent,workflow,provider,status,duration\n';
+
+      this.sessionLogs.forEach(log => {
+        csv += `"${log.timestamp}","session","${log.event}","${log.agentId || ''}","${
+          log.workflowId || ''
+        }",,\n`;
+      });
+
+      this.networkLogs.forEach(log => {
+        csv += `"${log.timestamp}","network","","","","${log.provider}","${log.status}","${log.duration}"\n`;
+      });
+
+      return csv;
+    }
+  }
+
+  /**
+   * Clear all logs (useful for testing)
+   */
+  clearLogs(): void {
+    this.networkLogs = [];
+    this.sessionLogs = [];
+    this.correlationId = 0;
+  }
+
+  /**
+   * Get logs summary statistics
+   */
+  getLogsSummary(): {
+    sessionId: string;
+    totalEvents: number;
+    networkRequests: number;
+    sessionEvents: number;
+    uniqueAgents: Set<string>;
+    uniqueWorkflows: Set<string>;
+    totalNetworkDuration: number;
+    errorCount: number;
+  } {
+    const agents = new Set<string>();
+    const workflows = new Set<string>();
+
+    this.sessionLogs.forEach(log => {
+      if (log.agentId) agents.add(log.agentId);
+      if (log.workflowId) workflows.add(log.workflowId);
+    });
+
+    const errorCount = this.networkLogs.filter(log => log.status === 'error').length;
+    const totalNetworkDuration = this.networkLogs.reduce((sum, log) => sum + log.duration, 0);
+
+    return {
+      sessionId: this.sessionId,
+      totalEvents: this.networkLogs.length + this.sessionLogs.length,
+      networkRequests: this.networkLogs.length,
+      sessionEvents: this.sessionLogs.length,
+      uniqueAgents: agents,
+      uniqueWorkflows: workflows,
+      totalNetworkDuration,
+      errorCount
+    };
+  }
 }
 
 export default Logger.getInstance();
