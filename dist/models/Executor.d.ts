@@ -6,6 +6,8 @@ import { Agent } from './Agent';
  * This class handles the actual execution of workflow steps using agents.
  */
 export declare class Executor {
+    private logger;
+    constructor();
     /**
      * Executes a workflow using the provided agents and context
      * @param workflow - The workflow to execute

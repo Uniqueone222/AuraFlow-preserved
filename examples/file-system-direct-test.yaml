@@ -1,0 +1,51 @@
+id: file-system-direct-test
+name: "Direct File System Operations Test"
+description: "Test direct file creation and logging without LLM API calls"
+version: "1.0.0"
+
+agents:
+  - id: file_writer
+    role: "File Writer"
+    goal: "Write test files to disk"
+    backstory: "Simple file writer for testing"
+    tools:
+      - file_system
+
+workflow:
+  type: sequential
+  stopOnError: false
+  steps:
+    - id: step_1
+      agent: file_writer
+      action: "Create test data file"
+      inputs:
+        required: []
+        optional: []
+      outputs:
+        produced: ["step_1_output"]
+
+    - id: step_2
+      agent: file_writer
+      action: "Create configuration file"
+      inputs:
+        required: []
+        optional: []
+      outputs:
+        produced: ["step_2_output"]
+
+    - id: step_3
+      agent: file_writer
+      action: "Create report file"
+      inputs:
+        required: []
+        optional: []
+      outputs:
+        produced: ["step_3_output"]
+
+config:
+  apiKeys:
+    provider: groq
+    groq: "test_key_for_logging"
+    model: llama-3.1-8b-instant
+    qdrant_url: http://localhost:6333
+    qdrant_key: default-api-key

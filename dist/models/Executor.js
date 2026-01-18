@@ -5,11 +5,16 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.Executor = void 0;
 const chalk_1 = __importDefault(require("chalk"));
+const Logger_1 = require("../utils/Logger");
 /**
  * Responsible for executing workflows.
  * This class handles the actual execution of workflow steps using agents.
  */
 class Executor {
+    logger;
+    constructor() {
+        this.logger = Logger_1.Logger.getInstance();
+    }
     /**
      * Executes a workflow using the provided agents and context
      * @param workflow - The workflow to execute
@@ -19,22 +24,41 @@ class Executor {
     async execute(workflow, agents, context) {
         console.log('\n>>> EXECUTING WORKFLOW: ' + workflow.id + ' (' + workflow.type + ') <<<');
         console.log('Stop on error: ' + workflow.stopOnError);
-        if (workflow.type === 'sequential') {
-            console.log(`Steps: ${workflow.steps.length}`);
-            await this.executeSequential(workflow, agents, context);
-        }
-        else if (workflow.type === 'parallel') {
-            console.log(`Branches: ${workflow.branches.length}`);
-            if (workflow.then) {
-                console.log(`Final Step: ${workflow.then.agent}`);
+        this.logger.logSessionEvent('Workflow Execution Started', workflow.id, undefined, undefined, {
+            type: workflow.type,
+            stopOnError: workflow.stopOnError,
+            stepsCount: workflow.steps?.length || workflow.branches?.length
+        });
+        try {
+            if (workflow.type === 'sequential') {
+                console.log(`Steps: ${workflow.steps.length}`);
+                await this.executeSequential(workflow, agents, context);
             }
-            await this.executeParallel(workflow, agents, context);
+            else if (workflow.type === 'parallel') {
+                console.log(`Branches: ${workflow.branches.length}`);
+                if (workflow.then) {
+                    console.log(`Final Step: ${workflow.then.agent}`);
+                }
+                await this.executeParallel(workflow, agents, context);
+            }
+            else if (workflow.type === 'conditional') {
+                await this.executeConditional(workflow, agents, context);
+            }
+            else {
+                console.log(`Execution for workflow type '${workflow.type}' not implemented yet`);
+            }
+            this.logger.logSessionEvent('Workflow Execution Completed', workflow.id, undefined, undefined, {
+                type: workflow.type,
+                status: 'success'
+            });
         }
-        else if (workflow.type === 'conditional') {
-            await this.executeConditional(workflow, agents, context);
-        }
-        else {
-            console.log(`Execution for workflow type '${workflow.type}' not implemented yet`);
+        catch (error) {
+            this.logger.logSessionEvent('Workflow Execution Failed', workflow.id, undefined, undefined, {
+                type: workflow.type,
+                status: 'error',
+                error: error.message
+            });
+            throw error;
         }
     }
     /**
@@ -55,6 +79,9 @@ class Executor {
             if (!agent) {
                 const errorMsg = `Agent with ID '${step.agent}' not found for step '${stepName}'`;
                 console.error('ERROR:', errorMsg);
+                this.logger.logSessionEvent('Agent Execution Failed', workflow.id, step.agent, stepName, {
+                    error: 'Agent not found'
+                });
                 if (workflow.stopOnError) {
                     throw new Error(errorMsg);
                 }
@@ -64,6 +91,10 @@ class Executor {
                 }
             }
             console.log(`  Running: ${agent.id} (${agent.role})`);
+            this.logger.logSessionEvent('Agent Execution Started', workflow.id, agent.id, stepName, {
+                role: agent.role,
+                action: actionName
+            });
             try {
                 // Prepare context information before execution
                 this.logContextPassing(agent, context, step);
@@ -89,12 +120,19 @@ class Executor {
                     }
                 }
                 console.log('  Output:', output.substring(0, 200) + (output.length > 200 ? '...' : ''));
+                this.logger.logSessionEvent('Agent Execution Completed', workflow.id, agent.id, stepName, {
+                    outputLength: output.length,
+                    produced: step.outputs?.produced || []
+                });
                 // Log what was added to the context
                 this.logContextUpdate(agent, output, step.outputs?.produced || []);
             }
             catch (error) {
                 const errorMsg = `Error executing agent '${agent.id}': ${error.message}`;
                 console.error(chalk_1.default.red('ERROR:'), errorMsg);
+                this.logger.logSessionEvent('Agent Execution Failed', workflow.id, agent.id, stepName, {
+                    error: error.message
+                });
                 if (error.stack) {
                     console.error(chalk_1.default.dim(`Stack: ${error.stack.split('\n')[1]}`));
                 }

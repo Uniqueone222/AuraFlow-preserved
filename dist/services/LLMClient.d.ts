@@ -20,6 +20,7 @@ export declare class LLMClient {
     private openai;
     private model;
     private tools;
+    private logger;
     constructor();
     private initializeGroq;
     private initializeGemini;

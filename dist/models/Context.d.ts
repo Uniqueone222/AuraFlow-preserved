@@ -11,6 +11,8 @@ export interface Message {
  */
 export declare class Context {
     memory?: MemoryProvider;
+    private logger;
+    sessionId: string;
     /**
      * Ordered list of messages that agents can read
      */

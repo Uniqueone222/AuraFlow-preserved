@@ -5,6 +5,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.WebSearchTool = void 0;
 const chalk_1 = __importDefault(require("chalk"));
+const Logger_1 = require("../utils/Logger");
 /**
  * WebSearchTool - DuckDuckGo search integration
  * Free search tool that doesn't require API keys
@@ -13,9 +14,11 @@ class WebSearchTool {
     static BASE_URL = 'https://api.duckduckgo.com/';
     maxResults;
     region;
+    logger;
     constructor(config = {}) {
         this.maxResults = config.maxResults || 10;
         this.region = config.region || 'us-en';
+        this.logger = Logger_1.Logger.getInstance();
     }
     /**
      * Perform web search using DuckDuckGo Instant Answer API
@@ -25,6 +28,8 @@ class WebSearchTool {
     async search(query) {
         try {
             console.log(chalk_1.default.blue.bold(`🔍 🔍 🔍 INTERNET SEARCH ACTIVATED: "${query}"`));
+            const startTime = Date.now();
+            const correlationId = this.logger.logNetworkRequest('GET', `${WebSearchTool.BASE_URL}?q=${encodeURIComponent(query)}&format=json`, 'DuckDuckGo', query.length);
             const url = new URL(WebSearchTool.BASE_URL);
             url.searchParams.append('q', query);
             url.searchParams.append('format', 'json');
@@ -36,7 +41,9 @@ class WebSearchTool {
                     'User-Agent': 'AuraFlow/1.0 (Multi-Agent Orchestration Engine)'
                 }
             });
+            const duration = Date.now() - startTime;
             if (!response.ok) {
+                this.logger.logNetworkResponse(correlationId, response.status, 0, duration, `HTTP error ${response.status}`);
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
             const data = await response.json();
@@ -78,10 +85,12 @@ class WebSearchTool {
                     }
                 });
             }
+            this.logger.logNetworkResponse(correlationId, 200, JSON.stringify(results).length, duration);
             console.log(chalk_1.default.blue.bold(`✅ ✅ ✅ INTERNET SEARCH COMPLETED: Found ${results.length} results`));
             return results;
         }
         catch (error) {
+            this.logger.log(Logger_1.LogLevel.ERROR, `Web search failed: ${error.message}`, { query });
             console.error('❌ Web search failed:', error.message);
             throw new Error(`Web search failed: ${error.message}`);
         }

@@ -730,6 +730,15 @@ yargs.default((0, helpers_1.hideBin)(process.argv))
     }
     console.log('\n>>> WORKFLOW COMPLETED SUCCESSFULLY <<<');
     console.log('Execution finished. Results shown above.');
+    // Write session logs summary
+    try {
+        const LoggerClass = (await Promise.resolve().then(() => __importStar(require('./utils/Logger')))).Logger;
+        const logger = LoggerClass.getInstance();
+        logger.writeSummary();
+    }
+    catch (logError) {
+        console.warn(chalk_1.default.yellow(`⚠ Warning: Failed to write logs summary: ${logError.message}`));
+    }
     // Save output to file if output capture was enabled
     if (outputCapture) {
         await outputCapture.saveToFile();

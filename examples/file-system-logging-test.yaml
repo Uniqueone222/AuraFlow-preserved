@@ -1,0 +1,67 @@
+id: file-system-logging-test
+name: "File System Operations with Logging"
+description: "Test MCP file system tool and verify logging of all operations"
+version: "1.0.0"
+
+agents:
+  - id: file_creator
+    role: "File System Operator"
+    goal: "Create and manage files using the MCP file system tool"
+    backstory: "Expert at file system operations and testing"
+    tools:
+      - file_system
+
+  - id: file_analyzer
+    role: "File Analyzer"
+    goal: "Read and analyze files created in the workflow"
+    backstory: "Specialist in analyzing file contents and generating reports"
+    tools:
+      - file_system
+
+workflow:
+  type: sequential
+  stopOnError: false
+  steps:
+    - id: create_test_file_1
+      agent: file_creator
+      action: "Create a test data file with project information"
+      inputs:
+        required: []
+        optional: []
+      outputs:
+        produced: ["test_file_1_result"]
+
+    - id: create_test_file_2
+      agent: file_creator
+      action: "Create a configuration file for logging test"
+      inputs:
+        required: ["test_file_1_result"]
+        optional: []
+      outputs:
+        produced: ["test_file_2_result"]
+
+    - id: analyze_created_files
+      agent: file_analyzer
+      action: "Read and summarize the created test files"
+      inputs:
+        required: ["test_file_2_result"]
+        optional: []
+      outputs:
+        produced: ["analysis_summary"]
+
+    - id: create_summary_report
+      agent: file_creator
+      action: "Create a final summary report of all operations"
+      inputs:
+        required: ["analysis_summary"]
+        optional: []
+      outputs:
+        produced: ["final_report"]
+
+config:
+  apiKeys:
+    provider: groq
+    groq: ${GROQ_API_KEY}
+    model: llama-3.1-8b-instant
+    qdrant_url: http://localhost:6333
+    qdrant_key: default-api-key

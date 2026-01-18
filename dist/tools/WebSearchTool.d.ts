@@ -6,6 +6,7 @@ export declare class WebSearchTool {
     private static readonly BASE_URL;
     private maxResults;
     private region;
+    private logger;
     constructor(config?: {
         maxResults?: number;
         region?: string;
