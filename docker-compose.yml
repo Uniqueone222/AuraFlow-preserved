@@ -1,0 +1,59 @@
+version: '3.8'
+
+services:
+  # Qdrant Vector Database for Memory Storage
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: auraflow-qdrant
+    ports:
+      - "6333:6333"
+    environment:
+      QDRANT_API_KEY: qdrant-api-key-123
+    volumes:
+      - qdrant_storage:/qdrant/storage
+    networks:
+      - auraflow-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:6333/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # AuraFlow Application
+  auraflow:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: auraflow-app
+    depends_on:
+      qdrant:
+        condition: service_healthy
+    environment:
+      # LLM Configuration
+      GROQ_API_KEY: ${GROQ_API_KEY:-gsk_your_api_key_here}
+      CURRENT_AI_MODEL: llama-3.1-8b-instant
+      
+      # Qdrant Configuration
+      MEMORY_BACKEND: qdrant
+      QDRANT_URL: http://qdrant:6333
+      QDRANT_API_KEY: qdrant-api-key-123
+      QDRANT_COLLECTION: auraflow_memory
+      
+      # Node Configuration
+      NODE_ENV: production
+    volumes:
+      - ./examples:/app/examples
+      - ./workflow_outputs:/app/workflow_outputs
+      - ./config:/app/config
+    networks:
+      - auraflow-network
+    stdin_open: true
+    tty: true
+    command: run examples/basic-sequential-example.yaml
+
+volumes:
+  qdrant_storage:
+
+networks:
+  auraflow-network:
+    driver: bridge

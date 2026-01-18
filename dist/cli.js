@@ -378,6 +378,39 @@ async function loadWorkflowFromFile(filePath) {
     try {
         const fileContent = fs.readFileSync(filePath, 'utf8');
         const yamlData = yaml.load(fileContent);
+        // Load API keys from YAML config if present
+        if (yamlData.config?.apiKeys) {
+            const apiKeys = yamlData.config.apiKeys;
+            // Set environment variables from YAML config
+            if (apiKeys.groq) {
+                process.env.GROQ_API_KEY = apiKeys.groq;
+                console.log(chalk_1.default.dim('[Config] Loaded GROQ_API_KEY from YAML'));
+            }
+            if (apiKeys.gemini) {
+                process.env.GEMINI_API_KEY = apiKeys.gemini;
+                console.log(chalk_1.default.dim('[Config] Loaded GEMINI_API_KEY from YAML'));
+            }
+            if (apiKeys.openai) {
+                process.env.OPENAI_API_KEY = apiKeys.openai;
+                console.log(chalk_1.default.dim('[Config] Loaded OPENAI_API_KEY from YAML'));
+            }
+            if (apiKeys.provider) {
+                process.env.LLM_PROVIDER = apiKeys.provider;
+                console.log(chalk_1.default.dim('[Config] Loaded LLM_PROVIDER from YAML'));
+            }
+            if (apiKeys.model) {
+                process.env.CURRENT_AI_MODEL = apiKeys.model;
+                console.log(chalk_1.default.dim('[Config] Loaded CURRENT_AI_MODEL from YAML'));
+            }
+            if (apiKeys.qdrant_url) {
+                process.env.QDRANT_URL = apiKeys.qdrant_url;
+                console.log(chalk_1.default.dim('[Config] Loaded QDRANT_URL from YAML'));
+            }
+            if (apiKeys.qdrant_key) {
+                process.env.QDRANT_API_KEY = apiKeys.qdrant_key;
+                console.log(chalk_1.default.dim('[Config] Loaded QDRANT_API_KEY from YAML'));
+            }
+        }
         // Validate the workflow
         const validation = validateWorkflow(yamlData);
         if (!validation.isValid) {

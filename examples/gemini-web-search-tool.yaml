@@ -1,0 +1,50 @@
+id: gemini-web-search-demo
+agents:
+  - id: researcher
+    role: Research Analyst
+    goal: Search the web for information and compile findings
+    tools:
+      - web_search
+  - id: analyst
+    role: Data Analyst
+    goal: Analyze research findings and extract key metrics
+    tools: []
+
+workflow:
+  type: sequential
+  steps:
+    - id: search_trends
+      agent: researcher
+      action: |
+        Search for the latest AI industry trends in 2025.
+        Use web_search to find recent news and developments.
+        Compile the top 5 most significant trends you find.
+      inputs:
+        required:
+          - query
+      outputs:
+        produced:
+          - trends_data
+    - id: analyze_trends
+      agent: analyst
+      action: |
+        Analyze the trends found and identify:
+        1. Most impactful trend
+        2. Market implications
+        3. Investment opportunities
+        4. Timeline for adoption
+      inputs:
+        required:
+          - trends_data
+      outputs:
+        produced:
+          - analysis_results
+
+config:
+  apiKeys:
+    provider: gemini
+    # REPLACE WITH YOUR ACTUAL GEMINI API KEY (get from https://ai.google.dev)
+    gemini: AIzaSyDUMMY_REPLACE_WITH_YOUR_KEY_1234567890
+    model: gemini-1.5-flash
+    qdrant_url: http://localhost:6333
+    qdrant_key: default-api-key

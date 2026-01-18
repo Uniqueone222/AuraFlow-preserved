@@ -1,0 +1,28 @@
+id: gemini-test-workflow
+agents:
+  - id: analyst
+    role: Data Analyst
+    goal: Analyze the provided data and extract key insights
+    tools:
+      - web_search
+
+workflow:
+  type: sequential
+  steps:
+    - id: step1
+      agent: analyst
+      action: Analyze and summarize this workflow example with Gemini API
+      inputs:
+        required:
+          - query
+      outputs:
+        produced:
+          - analysis
+
+config:
+  apiKeys:
+    provider: gemini
+    gemini: AIzaSyDummy_Replace_With_Your_Key_1234567890
+    model: gemini-1.5-flash
+    qdrant_url: http://localhost:6333
+    qdrant_key: your-qdrant-key

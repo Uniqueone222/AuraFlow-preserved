@@ -1,0 +1,42 @@
+id: gemini-sequential-workflow
+agents:
+  - id: researcher
+    role: Research Analyst
+    goal: Research and summarize information about a given topic
+    tools:
+      - web_search
+  - id: summarizer
+    role: Content Summarizer
+    goal: Create concise summaries of research findings
+    tools: []
+
+workflow:
+  type: sequential
+  steps:
+    - id: research_step
+      agent: researcher
+      action: Search for information about latest AI trends and compile findings
+      inputs:
+        required:
+          - topic
+      outputs:
+        produced:
+          - research_findings
+    - id: summary_step
+      agent: summarizer
+      action: Summarize the research findings into key takeaways
+      inputs:
+        required:
+          - research_findings
+      outputs:
+        produced:
+          - summary
+
+config:
+  apiKeys:
+    provider: gemini
+    # REPLACE WITH YOUR ACTUAL GEMINI API KEY (get from https://ai.google.dev)
+    gemini: AIzaSyDUMMY_REPLACE_WITH_YOUR_KEY_1234567890
+    model: gemini-1.5-flash
+    qdrant_url: http://localhost:6333
+    qdrant_key: default-api-key

@@ -1,0 +1,55 @@
+id: gemini-parallel-workflow
+agents:
+  - id: data_analyst
+    role: Data Analyst
+    goal: Analyze market trends and provide insights
+    tools:
+      - web_search
+  - id: sentiment_analyzer
+    role: Sentiment Analyzer
+    goal: Analyze sentiment of collected data
+    tools: []
+  - id: forecaster
+    role: Forecaster
+    goal: Predict future trends based on data
+    tools: []
+
+workflow:
+  type: parallel
+  branches:
+    - id: trend_branch
+      agent: data_analyst
+      action: Analyze current market trends for the given sector
+      inputs:
+        required:
+          - sector
+      outputs:
+        produced:
+          - trend_analysis
+    - id: sentiment_branch
+      agent: sentiment_analyzer
+      action: Perform sentiment analysis on recent market discussions
+      inputs:
+        required:
+          - sector
+      outputs:
+        produced:
+          - sentiment_results
+    - id: forecast_branch
+      agent: forecaster
+      action: Generate 3-month forecast based on available data
+      inputs:
+        required:
+          - sector
+      outputs:
+        produced:
+          - forecast
+
+config:
+  apiKeys:
+    provider: gemini
+    # REPLACE WITH YOUR ACTUAL GEMINI API KEY (get from https://ai.google.dev)
+    gemini: AIzaSyDUMMY_REPLACE_WITH_YOUR_KEY_1234567890
+    model: gemini-1.5-pro
+    qdrant_url: http://localhost:6333
+    qdrant_key: default-api-key

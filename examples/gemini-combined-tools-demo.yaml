@@ -1,0 +1,77 @@
+id: gemini-combined-tools-demo
+agents:
+  - id: researcher
+    role: Research Analyst
+    goal: Search the web and collect information
+    tools:
+      - web_search
+      - file_system
+  - id: content_creator
+    role: Content Creator
+    goal: Create comprehensive content from research
+    tools:
+      - file_system
+  - id: documentation_specialist
+    role: Documentation Specialist
+    goal: Generate and save documentation
+    tools:
+      - file_system
+
+workflow:
+  type: parallel_then
+  branches:
+    - id: web_research
+      agent: researcher
+      action: |
+        Search for information about Kubernetes best practices and container orchestration.
+        Use web_search to find:
+        1. Latest Kubernetes releases
+        2. Best practices for production
+        3. Security considerations
+        4. Performance optimization tips
+      inputs:
+        required:
+          - topic
+      outputs:
+        produced:
+          - web_research_findings
+    - id: check_existing_docs
+      agent: researcher
+      action: |
+        Read the project documentation from ./README.md to understand current setup.
+        Extract:
+        1. Current architecture
+        2. Existing tools and features
+        3. Known limitations
+      inputs:
+        required:
+          - doc_path
+      outputs:
+        produced:
+          - existing_documentation
+  then:
+    agent: content_creator
+    action: |
+      Combine web research findings with existing documentation to create:
+      1. Executive summary of Kubernetes adoption strategy
+      2. Integration plan with AuraFlow
+      3. Implementation timeline
+      4. Risk mitigation strategies
+      
+      Save the comprehensive document to ./workflow_outputs/kubernetes-integration-plan.md
+    inputs:
+      required:
+        - web_research_findings
+        - existing_documentation
+    outputs:
+      produced:
+        - integration_plan
+
+config:
+  apiKeys:
+    provider: gemini
+    # REPLACE WITH YOUR ACTUAL GEMINI API KEY (get from https://ai.google.dev)
+    gemini: AIzaSyDUMMY_REPLACE_WITH_YOUR_KEY_1234567890
+    model: gemini-1.5-pro
+    qdrant_url: http://localhost:6333
+    qdrant_key: default-api-key

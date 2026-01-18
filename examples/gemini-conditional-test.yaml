@@ -1,0 +1,86 @@
+id: gemini-conditional-workflow
+agents:
+  - id: classifier
+    role: Content Classifier
+    goal: Classify content and determine the appropriate action
+    tools:
+      - web_search
+  - id: content_creator
+    role: Content Creator
+    goal: Create engaging content
+    tools: []
+  - id: seo_optimizer
+    role: SEO Specialist
+    goal: Optimize content for search engines
+    tools: []
+
+workflow:
+  type: conditional
+  condition:
+    stepId: classify_step
+    cases:
+      - condition: "blog"
+        steps:
+          - id: create_blog
+            agent: content_creator
+            action: Create a detailed blog post with introduction, body, and conclusion
+            inputs:
+              required:
+                - topic
+                - classification
+            outputs:
+              produced:
+                - content
+          - id: optimize_blog
+            agent: seo_optimizer
+            action: Optimize the blog post for SEO with keywords and meta tags
+            inputs:
+              required:
+                - content
+            outputs:
+              produced:
+                - optimized_content
+      - condition: "social"
+        steps:
+          - id: create_social
+            agent: content_creator
+            action: Create short, engaging social media posts for multiple platforms
+            inputs:
+              required:
+                - topic
+                - classification
+            outputs:
+              produced:
+                - content
+      - condition: "technical"
+        steps:
+          - id: create_technical
+            agent: content_creator
+            action: Create comprehensive technical documentation with examples
+            inputs:
+              required:
+                - topic
+                - classification
+            outputs:
+              produced:
+                - content
+
+  steps:
+    - id: classify_step
+      agent: classifier
+      action: Classify the content type (blog/social/technical) based on the topic
+      inputs:
+        required:
+          - topic
+      outputs:
+        produced:
+          - classification
+
+config:
+  apiKeys:
+    provider: gemini
+    # REPLACE WITH YOUR ACTUAL GEMINI API KEY (get from https://ai.google.dev)
+    gemini: AIzaSyDUMMY_REPLACE_WITH_YOUR_KEY_1234567890
+    model: gemini-1.5-flash
+    qdrant_url: http://localhost:6333
+    qdrant_key: default-api-key

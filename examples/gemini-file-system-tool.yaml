@@ -1,0 +1,72 @@
+id: gemini-file-system-demo
+agents:
+  - id: file_manager
+    role: File System Manager
+    goal: Read and process files from the file system
+    tools:
+      - file_system
+  - id: processor
+    role: Content Processor
+    goal: Process and analyze file contents
+    tools:
+      - file_system
+  - id: writer
+    role: Report Writer
+    goal: Generate reports and save them to files
+    tools:
+      - file_system
+
+workflow:
+  type: sequential
+  steps:
+    - id: read_config
+      agent: file_manager
+      action: |
+        Read the configuration file from ./config/api-keys.json.
+        Analyze its structure and extract key information about:
+        1. Available API key configurations
+        2. Default settings
+        3. Security structure
+      inputs:
+        required:
+          - file_path
+      outputs:
+        produced:
+          - config_analysis
+    - id: generate_summary
+      agent: processor
+      action: |
+        Based on the configuration analysis, generate a summary including:
+        1. Configuration overview
+        2. Best practices for API key management
+        3. Security recommendations
+      inputs:
+        required:
+          - config_analysis
+      outputs:
+        produced:
+          - summary_report
+    - id: save_report
+      agent: writer
+      action: |
+        Save the generated summary report to a file in ./workflow_outputs/
+        Create a file named 'config-analysis-report.md' with:
+        - Analysis timestamp
+        - Configuration summary
+        - Recommendations
+        - Next steps
+      inputs:
+        required:
+          - summary_report
+      outputs:
+        produced:
+          - report_location
+
+config:
+  apiKeys:
+    provider: gemini
+    # REPLACE WITH YOUR ACTUAL GEMINI API KEY (get from https://ai.google.dev)
+    gemini: AIzaSyDUMMY_REPLACE_WITH_YOUR_KEY_1234567890
+    model: gemini-1.5-flash
+    qdrant_url: http://localhost:6333
+    qdrant_key: default-api-key

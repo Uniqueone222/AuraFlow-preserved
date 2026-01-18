@@ -1,0 +1,17 @@
+node_modules
+npm-debug.log
+dist
+.env
+.git
+.gitignore
+README.md
+.vscode
+.idea
+.DS_Store
+coverage
+*.swp
+*.swo
+.env.example
+temp_test
+workflow_outputs
+auraflow_memory/demo-workflow.json
