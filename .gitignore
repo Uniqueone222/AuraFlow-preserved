@@ -1,23 +1,16 @@
-# Environment variables
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+
+# Environment (contains secrets)
 .env
 .env.local
 .env.*.local
 
-# Configuration files with secrets
+# Config with secrets
 config/api-keys.json
-config/secrets.json
-
-# Build outputs
-dist/
-build/
-*.js
-*.js.map
-*.d.ts
-
-# Dependencies
-node_modules/
-package-lock.json
-yarn.lock
 
 # IDE
 .vscode/
@@ -25,42 +18,31 @@ yarn.lock
 *.swp
 *.swo
 *~
+
+# OS
 .DS_Store
+Thumbs.db
 
 # Logs
-logs/
 *.log
+logs/
 npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
 
-# Testing
-coverage/
-.nyc_output/
+# Runtime outputs
+workflow_outputs/*
+!workflow_outputs/.gitkeep
+auraflow_memory/*
+!auraflow_memory/.gitkeep
 
-# Temporary files
+# Docker
+docker-compose.override.yml
+qdrant_storage/
+
+# Temp
 temp/
 tmp/
 *.tmp
 
-# OS files
-Thumbs.db
-.DS_Store
-
-# Docker
-docker-compose.override.yml
-
-# Memory/Cache
-.cache/
-__pycache__/
-
-# Qdrant data (will be created in volumes)
-qdrant_storage/
-
-# Workflow outputs (generated at runtime)
-workflow_outputs/
-
-# Temporary test files
-temp_visual.txt
-test_run.log
-mock_response.json
+# Test
+coverage/
+.nyc_output/
