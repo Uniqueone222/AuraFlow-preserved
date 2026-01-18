@@ -45,10 +45,10 @@ export class Agent {
    * @param toolRegistry - Tool registry for executing tools
    */
   constructor(
-    id: string, 
-    role: string, 
-    goal: string, 
-    tools: string[], 
+    id: string,
+    role: string,
+    goal: string,
+    tools: string[],
     subAgents: Agent[] = [],
     toolRegistry: ToolRegistry | null = null
   ) {
@@ -76,10 +76,11 @@ export class Agent {
    * @param context - The shared context containing messages
    * @returns Formatted prompt string
    */
-  private buildPrompt(context: Context): string {
+  private async buildPrompt(context: Context): Promise<string> {
     // Get all messages from the context
-    const messages = context.getMessages().map(msg => `[${msg.timestamp.toISOString()}] Agent ${msg.agentId}: ${msg.content}`).join('\n');
-    
+    const contextMessages = context.getMessages();
+    const messages = contextMessages.map(msg => `[${msg.timestamp.toISOString()}] Agent ${msg.agentId}: ${msg.content}`).join('\n');
+
     // Format available sub-agents if they exist
     let subAgentsInfo = "";
     if (this.subAgents && this.subAgents.length > 0) {
@@ -91,7 +92,7 @@ ${subAgentList}
 
 If you need to delegate part of your task to a sub-agent, respond with: DELEGATE_TO:<sub_agent_id>:<task_description_for_sub_agent>`;
     }
-    
+
     // Format available tools if they exist
     let toolsInfo = "";
     if (this.tools && this.tools.length > 0) {
@@ -104,20 +105,51 @@ ${toolList}
 
 You can use web_search to gather current information from the internet.`;
     }
-    
+
+    // --- AUTO-RAG INJECTION ---
+    let ragContext = "";
+    if (context.memory) {
+      try {
+        // Construct a query based on the agent's goal and the most recent context
+        const lastMessage = contextMessages.length > 0 ? contextMessages[contextMessages.length - 1].content : "";
+        const ragQuery = `Role: ${this.role}, Goal: ${this.goal}. Context: ${lastMessage.substring(0, 200)}`;
+
+        console.log(`  🧠 Agent ${this.id} querying memory for context...`);
+        const memories = await context.memory.query(ragQuery, 'all-workflows', 3); // Fetch top 3 relevant memories
+
+        if (memories && memories.length > 0) {
+          const memoryContent = memories.map((m, i) =>
+            `Memory ${i + 1} (from Agent ${m.agentId} at ${new Date(m.timestamp).toISOString()}): ${m.content}`
+          ).join('\n\n');
+
+          ragContext = `
+### 🧠 Relevant Past Memories
+The following information was retrieved from your long-term memory (Qdrant) and may be relevant to your current task:
+
+${memoryContent}
+`;
+          console.log(`  ✓ Injected ${memories.length} memories into prompt`);
+        }
+      } catch (error: any) {
+        console.warn(`  ⚠ Failed to query memory: ${error.message}`);
+      }
+    }
+
     // Construct the full prompt
     const prompt = `You are an AI agent with the following role: ${this.role}
 
 Your goal is: ${this.goal}${subAgentsInfo}${toolsInfo}
 
+${ragContext}
+
 Current context:
 ${messages}
 
 Do not ask questions. Complete the task independently and return a final answer.`;
-    
+
     return prompt;
   }
-  
+
   /**
    * Runs the agent with tools support, handling tool calls in a loop
    * @param context - The shared context containing messages
@@ -133,7 +165,7 @@ Do not ask questions. Complete the task independently and return a final answer.
     const toolDefinitions = this.buildToolDefinitions();
 
     // Construct a prompt using the agent's role, goal, and the current context
-    const prompt = this.buildPrompt(context);
+    const prompt = await this.buildPrompt(context);
 
     let response: any;
     let iterations = 0;
@@ -323,11 +355,11 @@ Do not ask questions. Complete the task independently and return a final answer.
 
     // Otherwise use the original delegation-based flow
     // Construct a prompt using the agent's role, goal, and the current context
-    const prompt = this.buildPrompt(context);
-    
+    const prompt = await this.buildPrompt(context);
+
     // Call the LLM client to generate a response
     let response = await this.llmClient.generate(prompt);
-    
+
     // Check if the response contains a delegation instruction
     const delegation = this.parseDelegation(response);
     if (delegation) {
@@ -336,16 +368,16 @@ Do not ask questions. Complete the task independently and return a final answer.
       if (subAgent) {
         // Create a temporary context for the sub-agent with the delegation task
         const subAgentContext = new (await import('./Context')).Context();
-        
+
         // Add the delegation task to the sub-agent's context
         subAgentContext.addMessage(this.id, `Task delegated from parent agent: ${delegation.task}`);
-        
+
         // Run the sub-agent with its own context
         const subAgentResponse = await subAgent.run(subAgentContext);
-        
+
         // Add the sub-agent's response to the main context
         context.addMessage(subAgent.id, subAgentResponse);
-        
+
         // Now have the parent agent respond to the original prompt with the sub-agent's result
         const followUpPrompt = `${prompt}
 
@@ -353,14 +385,14 @@ The sub-agent ${delegation.subAgentId} has completed the delegated task with the
 ${subAgentResponse}
 
 Now please continue with your original task using this information.`;
-        
+
         response = await this.llmClient.generate(followUpPrompt);
       } else {
         // If sub-agent not found, return the original response without delegation
         response = `ERROR: Sub-agent ${delegation.subAgentId} not found. Original response: ${response}`;
       }
     }
-    
+
     return response;
   }
 }

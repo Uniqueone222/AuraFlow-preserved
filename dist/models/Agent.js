@@ -93,9 +93,10 @@ class Agent {
      * @param context - The shared context containing messages
      * @returns Formatted prompt string
      */
-    buildPrompt(context) {
+    async buildPrompt(context) {
         // Get all messages from the context
-        const messages = context.getMessages().map(msg => `[${msg.timestamp.toISOString()}] Agent ${msg.agentId}: ${msg.content}`).join('\n');
+        const contextMessages = context.getMessages();
+        const messages = contextMessages.map(msg => `[${msg.timestamp.toISOString()}] Agent ${msg.agentId}: ${msg.content}`).join('\n');
         // Format available sub-agents if they exist
         let subAgentsInfo = "";
         if (this.subAgents && this.subAgents.length > 0) {
@@ -119,10 +120,36 @@ ${toolList}
 
 You can use web_search to gather current information from the internet.`;
         }
+        // --- AUTO-RAG INJECTION ---
+        let ragContext = "";
+        if (context.memory) {
+            try {
+                // Construct a query based on the agent's goal and the most recent context
+                const lastMessage = contextMessages.length > 0 ? contextMessages[contextMessages.length - 1].content : "";
+                const ragQuery = `Role: ${this.role}, Goal: ${this.goal}. Context: ${lastMessage.substring(0, 200)}`;
+                console.log(`  🧠 Agent ${this.id} querying memory for context...`);
+                const memories = await context.memory.query(ragQuery, 'all-workflows', 3); // Fetch top 3 relevant memories
+                if (memories && memories.length > 0) {
+                    const memoryContent = memories.map((m, i) => `Memory ${i + 1} (from Agent ${m.agentId} at ${new Date(m.timestamp).toISOString()}): ${m.content}`).join('\n\n');
+                    ragContext = `
+### 🧠 Relevant Past Memories
+The following information was retrieved from your long-term memory (Qdrant) and may be relevant to your current task:
+
+${memoryContent}
+`;
+                    console.log(`  ✓ Injected ${memories.length} memories into prompt`);
+                }
+            }
+            catch (error) {
+                console.warn(`  ⚠ Failed to query memory: ${error.message}`);
+            }
+        }
         // Construct the full prompt
         const prompt = `You are an AI agent with the following role: ${this.role}
 
 Your goal is: ${this.goal}${subAgentsInfo}${toolsInfo}
+
+${ragContext}
 
 Current context:
 ${messages}
@@ -143,7 +170,7 @@ Do not ask questions. Complete the task independently and return a final answer.
         // Build tool definitions if tools are available
         const toolDefinitions = this.buildToolDefinitions();
         // Construct a prompt using the agent's role, goal, and the current context
-        const prompt = this.buildPrompt(context);
+        const prompt = await this.buildPrompt(context);
         let response;
         let iterations = 0;
         const maxIterations = 5; // Prevent infinite loops
@@ -313,7 +340,7 @@ Do not ask questions. Complete the task independently and return a final answer.
         }
         // Otherwise use the original delegation-based flow
         // Construct a prompt using the agent's role, goal, and the current context
-        const prompt = this.buildPrompt(context);
+        const prompt = await this.buildPrompt(context);
         // Call the LLM client to generate a response
         let response = await this.llmClient.generate(prompt);
         // Check if the response contains a delegation instruction
