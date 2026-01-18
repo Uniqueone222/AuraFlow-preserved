@@ -6,16 +6,18 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.LLMClient = void 0;
 const groq_sdk_1 = __importDefault(require("groq-sdk"));
 const generative_ai_1 = require("@google/generative-ai");
+const openai_1 = __importDefault(require("openai"));
 const chalk_1 = __importDefault(require("chalk"));
 // Track if the client has been initialized to prevent duplicate logs
 let isInitialized = false;
 /**
- * Multi-provider LLM client supporting Groq and Gemini
+ * Multi-provider LLM client supporting Groq, Gemini, and OpenAI
  */
 class LLMClient {
     provider;
     client;
     gemini;
+    openai;
     model;
     constructor() {
         this.provider = process.env.LLM_PROVIDER || 'groq';
@@ -23,6 +25,9 @@ class LLMClient {
         // Initialize provider-specific client
         if (this.provider === 'gemini') {
             this.initializeGemini();
+        }
+        else if (this.provider === 'openai') {
+            this.initializeOpenAI();
         }
         else if (this.provider === 'groq') {
             this.initializeGroq();
@@ -54,11 +59,22 @@ class LLMClient {
         }
         this.gemini = new generative_ai_1.GoogleGenerativeAI(GEMINI_API_KEY);
     }
+    initializeOpenAI() {
+        const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+        if (!OPENAI_API_KEY) {
+            throw new Error('OPENAI_API_KEY environment variable is not set. ' +
+                'Please configure it in your .env file or set it as an environment variable.');
+        }
+        this.openai = new openai_1.default({ apiKey: OPENAI_API_KEY });
+    }
     async generate(prompt) {
         try {
             console.log(chalk_1.default.green(`✓ Using model: ${this.model}`));
             if (this.provider === 'gemini') {
                 return await this.generateGemini(prompt);
+            }
+            else if (this.provider === 'openai') {
+                return await this.generateOpenAI(prompt);
             }
             else {
                 return await this.generateGroq(prompt);
@@ -123,6 +139,38 @@ class LLMClient {
                 errorMessage = `Model '${this.model}' not found. Available Gemini models: gemini-1.5-pro, gemini-1.5-flash`;
             }
             throw new Error(`Gemini Generation failed: ${errorMessage}`);
+        }
+    }
+    async generateOpenAI(prompt) {
+        try {
+            const chatCompletion = await this.openai.chat.completions.create({
+                messages: [
+                    { role: 'user', content: prompt }
+                ],
+                model: this.model
+            });
+            const response = chatCompletion.choices[0]?.message?.content;
+            if (!response) {
+                throw new Error('Empty response from OpenAI API');
+            }
+            return response;
+        }
+        catch (error) {
+            let errorMessage = error.message || 'Unknown error';
+            if (error.status === 404) {
+                errorMessage = `Model '${this.model}' not found. Available models: gpt-4, gpt-4-turbo, gpt-3.5-turbo`;
+            }
+            else if (error.status === 401) {
+                errorMessage = 'Invalid or expired OpenAI API key. Please check your OPENAI_API_KEY.';
+            }
+            else if (error.status === 429) {
+                errorMessage = 'Rate limit exceeded on OpenAI API. Please try again later.';
+            }
+            else if (error.status === 500) {
+                errorMessage = 'OpenAI API server error. Please try again later.';
+            }
+            console.error(chalk_1.default.dim(`Status: ${error.status || 'unknown'}`));
+            throw new Error(`OpenAI Generation failed: ${errorMessage}`);
         }
     }
 }

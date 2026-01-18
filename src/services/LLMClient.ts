@@ -1,17 +1,19 @@
 import Groq from 'groq-sdk';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import OpenAI from 'openai';
 import chalk from 'chalk';
 
 // Track if the client has been initialized to prevent duplicate logs
 let isInitialized = false;
 
 /**
- * Multi-provider LLM client supporting Groq and Gemini
+ * Multi-provider LLM client supporting Groq, Gemini, and OpenAI
  */
 export class LLMClient {
   private provider: string;
   private client: any;
   private gemini: any;
+  private openai: any;
   private model: string;
 
   constructor() {
@@ -21,6 +23,8 @@ export class LLMClient {
     // Initialize provider-specific client
     if (this.provider === 'gemini') {
       this.initializeGemini();
+    } else if (this.provider === 'openai') {
+      this.initializeOpenAI();
     } else if (this.provider === 'groq') {
       this.initializeGroq();
     } else {
@@ -62,12 +66,27 @@ export class LLMClient {
     this.gemini = new GoogleGenerativeAI(GEMINI_API_KEY);
   }
 
+  private initializeOpenAI(): void {
+    const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+
+    if (!OPENAI_API_KEY) {
+      throw new Error(
+        'OPENAI_API_KEY environment variable is not set. ' +
+        'Please configure it in your .env file or set it as an environment variable.'
+      );
+    }
+
+    this.openai = new OpenAI({ apiKey: OPENAI_API_KEY });
+  }
+
   async generate(prompt: string): Promise<string> {
     try {
       console.log(chalk.green(`✓ Using model: ${this.model}`));
 
       if (this.provider === 'gemini') {
         return await this.generateGemini(prompt);
+      } else if (this.provider === 'openai') {
+        return await this.generateOpenAI(prompt);
       } else {
         return await this.generateGroq(prompt);
       }
@@ -133,6 +152,39 @@ export class LLMClient {
       }
 
       throw new Error(`Gemini Generation failed: ${errorMessage}`);
+    }
+  }
+
+  private async generateOpenAI(prompt: string): Promise<string> {
+    try {
+      const chatCompletion = await this.openai.chat.completions.create({
+        messages: [
+          { role: 'user', content: prompt }
+        ],
+        model: this.model
+      });
+
+      const response = chatCompletion.choices[0]?.message?.content;
+      if (!response) {
+        throw new Error('Empty response from OpenAI API');
+      }
+
+      return response;
+    } catch (error: any) {
+      let errorMessage = error.message || 'Unknown error';
+
+      if (error.status === 404) {
+        errorMessage = `Model '${this.model}' not found. Available models: gpt-4, gpt-4-turbo, gpt-3.5-turbo`;
+      } else if (error.status === 401) {
+        errorMessage = 'Invalid or expired OpenAI API key. Please check your OPENAI_API_KEY.';
+      } else if (error.status === 429) {
+        errorMessage = 'Rate limit exceeded on OpenAI API. Please try again later.';
+      } else if (error.status === 500) {
+        errorMessage = 'OpenAI API server error. Please try again later.';
+      }
+
+      console.error(chalk.dim(`Status: ${error.status || 'unknown'}`));
+      throw new Error(`OpenAI Generation failed: ${errorMessage}`);
     }
   }
 }

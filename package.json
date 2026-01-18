@@ -32,6 +32,7 @@
     "groq-sdk": "^0.37.0",
     "js-yaml": "^4.1.1",
     "lancedb": "^0.0.1",
+    "openai": "^6.16.0",
     "readline-sync": "^1.4.10",
     "typescript": "^5.3.3",
     "yargs": "^17.7.2"

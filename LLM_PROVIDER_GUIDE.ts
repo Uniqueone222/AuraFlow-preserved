@@ -107,7 +107,7 @@ export const LLM_PROVIDER_GUIDE = {
   openai: {
     name: 'OpenAI',
     package: 'openai',
-    installed: false,
+    installed: true,
     apiKeyEnv: 'OPENAI_API_KEY',
     models: [
       'gpt-4',

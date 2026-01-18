@@ -1,0 +1,102 @@
+id: openai-conditional-workflow
+agents:
+  - id: classifier
+    role: Query Classifier
+    goal: Classify user queries and route to appropriate handler
+    tools: []
+  - id: qa_assistant
+    role: Q&A Assistant
+    goal: Answer factual questions
+    tools:
+      - web_search
+  - id: coding_expert
+    role: Coding Expert
+    goal: Provide coding assistance and solutions
+    tools: []
+  - id: creative_writer
+    role: Creative Writer
+    goal: Generate creative and engaging content
+    tools: []
+
+workflow:
+  type: conditional
+  condition:
+    stepId: classify_query
+    cases:
+      - condition: "question"
+        step:
+          id: answer_question
+          agent: qa_assistant
+          action: |
+            Answer the user's question comprehensively:
+            1. Provide accurate information
+            2. Include relevant sources if available
+            3. Add context and explanation
+            4. Suggest follow-up questions
+          inputs:
+            required:
+              - query
+              - classification
+          outputs:
+            produced:
+              - response
+      - condition: "code"
+        step:
+          id: code_assist
+          agent: coding_expert
+          action: |
+            Provide coding assistance:
+            1. Analyze the code requirement
+            2. Provide working code examples
+            3. Explain the solution approach
+            4. Include best practices and notes
+          inputs:
+            required:
+              - query
+              - classification
+          outputs:
+            produced:
+              - response
+      - condition: "creative"
+        step:
+          id: creative_task
+          agent: creative_writer
+          action: |
+            Generate creative content:
+            1. Understand the creative requirements
+            2. Generate original content
+            3. Ensure coherence and flow
+            4. Add unique perspectives and ideas
+          inputs:
+            required:
+              - query
+              - classification
+          outputs:
+            produced:
+              - response
+
+  steps:
+    - id: classify_query
+      agent: classifier
+      action: |
+        Classify the user input as one of:
+        1. "question" - factual or informational queries
+        2. "code" - programming or technical assistance
+        3. "creative" - creative writing or content generation
+        
+        Respond with only the classification type.
+      inputs:
+        required:
+          - query
+      outputs:
+        produced:
+          - classification
+
+config:
+  apiKeys:
+    provider: openai
+    # REPLACE WITH YOUR ACTUAL OPENAI API KEY (get from https://platform.openai.com/api-keys)
+    openai: sk_test_DUMMY_REPLACE_WITH_YOUR_KEY_1234567890
+    model: gpt-3.5-turbo
+    qdrant_url: http://localhost:6333
+    qdrant_key: default-api-key
